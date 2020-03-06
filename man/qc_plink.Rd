@@ -95,7 +95,7 @@ the as number of standard deviation from the cohort centroid.
 Default is \code{3}.}
 
 \item{check_bim_script}{A \code{character}. The PERL script to use to check PLINK files to allow later imputation.
-Default is \code{system.file("perl", "HRC-1000G-check-bim.pl", package = "CARoT")}.}
+Default is \code{system.file("perl", "HRC-1000G-check-bim.pl", package = "dgapaq")}.}
 
 \item{ref1kg_panel}{A \code{character}. The \verb{*.panel} file from 1,000 Genome project.
 Default is \code{NULL}.}
@@ -117,7 +117,7 @@ Default is \code{NULL}.}
 \item{title}{A \code{character}. The report's title. Default is \code{paste(array, "Array Quality-Control")}.}
 
 \item{author_name}{A \code{character}. The author's name to be printed in the report.
-Default is \code{CARoT}.}
+Default is \code{Unknown}.}
 
 \item{author_affiliation}{A \code{character}. The affiliation to be printed in the report.
 Default is \code{NULL}.}
