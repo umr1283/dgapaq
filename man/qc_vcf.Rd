@@ -34,7 +34,7 @@ qc_vcf(
 \item{title}{A \code{character}. The report's title. Default is \code{"Post-Imputation Quality-Control"}.}
 
 \item{author_name}{A \code{character}. The author's name to be printed in the report.
-Default is \code{CARoT}.}
+Default is \code{Unknown}.}
 
 \item{author_affiliation}{A \code{character}. The affiliation to be printed in the report.
 Default is \code{NULL}.}
