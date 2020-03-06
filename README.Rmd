@@ -1,0 +1,33 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, echo = FALSE}
+knitr::opts_chunk$set(
+  eval = FALSE,
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%"
+)
+```
+
+# DNA Genotyping Arrays Processing And Quality-Control <!--<img src="man/figures/dgapaq.png" align="right" width="120" />-->
+
+<!-- badges: start -->
+[![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://www.tidyverse.org/lifecycle/#experimental)
+[![GitHub tag](https://img.shields.io/github/tag/mcanouil/dgapaq.svg?label=latest tag&include_prereleases)](https://github.com/mcanouil/dgapaq)
+<!-- badges: end -->
+
+## Installation
+
+```{r, eval = FALSE}
+# Install dgapaq from CRAN:
+install.packages("dgapaq")
+
+# Or the the development version from GitHub:
+# install.packages("remotes")
+remotes::install_github("mcanouil/dgapaq")
+```
