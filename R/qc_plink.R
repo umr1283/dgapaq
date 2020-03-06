@@ -34,7 +34,7 @@
 #'     the as number of standard deviation from the cohort centroid.
 #'     Default is `3`.
 #' @param check_bim_script A `character`. The PERL script to use to check PLINK files to allow later imputation.
-#'     Default is `system.file("perl", "HRC-1000G-check-bim.pl", package = "CARoT")`.
+#'     Default is `system.file("perl", "HRC-1000G-check-bim.pl", package = "dgapaq")`.
 #' @param ref1kg_panel A `character`. The `*.panel` file from 1,000 Genome project.
 #'     Default is `NULL`.
 #' @param ref1kg_population A `character`. The `*.tsv` file from 1,000 Genome project describing samples and ethnicity.
@@ -48,7 +48,7 @@
 #' @param bin_path A `list(character)`. A list giving the binary path of `bcftools`, `bgzip`, `gcta` and `plink1.9`.
 #' @param title A `character`. The report's title. Default is `paste(array, "Array Quality-Control")`.
 #' @param author_name A `character`. The author's name to be printed in the report.
-#'     Default is `CARoT`.
+#'     Default is `Unknown`.
 #' @param author_affiliation A `character`. The affiliation to be printed in the report.
 #'     Default is `NULL`.
 #' @param author_email A `character`. The email to be printed in the report.
