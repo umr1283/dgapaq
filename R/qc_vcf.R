@@ -6,7 +6,7 @@
 #' @param output_file A `character`. The name of the html file produced.
 #' @param title A `character`. The report's title. Default is `"Post-Imputation Quality-Control"`.
 #' @param author_name A `character`. The author's name to be printed in the report.
-#'     Default is `CARoT`.
+#'     Default is `Unknown`.
 #' @param author_affiliation A `character`. The affiliation to be printed in the report.
 #'     Default is `NULL`.
 #' @param author_email A `character`. The email to be printed in the report.
