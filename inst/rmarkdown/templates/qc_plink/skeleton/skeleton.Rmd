@@ -80,6 +80,7 @@ options(stringsAsFactors = FALSE, knitr.table.format = "html")
 # library("tidyr")
 # library("utils")
 # library("writexl")
+`%>%` <- magrittr::`%>%`
 
 invisible(
   sapply(
@@ -97,7 +98,7 @@ if (params[["cache"]]) {
   dir.create(paste0(params[["output_directory"]], "/cache/"), recursive = TRUE, showWarnings = FALSE, mode = "0777")
 }
 
-opts_chunk$set(
+knitr::opts_chunk$set(
   results = "asis",
   size = "small",
   include = TRUE,
@@ -124,10 +125,10 @@ pretty_kable <- function(
   echo = TRUE,
   ...
 ) {
-  colnames(data) <- capitalize(colnames(data))
+  colnames(data) <- Hmisc::capitalize(colnames(data))
   options(knitr.table.format = "html")
-  output <- kable(x = data, format.args = format_args, col.names = col.names, ...)
-  output <- kable_styling(
+  output <- knitr::kable(x = data, format.args = format_args, col.names = col.names, ...)
+  output <- kableExtra::kable_styling(
     kable_input = output,
     bootstrap_options = c("striped", "hover", "condensed", "responsive"),
     full_width = ifelse(is.null(full_width), FALSE, full_width),
@@ -152,21 +153,21 @@ pval_trans <- function() {
       }
     }
   }
-  trans_new(
+  scales::trans_new(
     name = "pval",
     transform = function(x) {-log(x, 10)},
     inverse = function(x) {10^-x},
     breaks = neglog10_breaks(),
     format = function(x) {
       parse(
-        text = gsub("e", " %*% 10^", gsub("1e+00", "1", scientific_format()(x), fixed = TRUE))
+        text = gsub("e", " %*% 10^", gsub("1e+00", "1", scales::scientific_format()(x), fixed = TRUE))
       )
     },
     domain = c(0, 1)
   )
 }
 
-theme_set(theme_light(base_size = params[["gg_fontsize"]]))
+ggplot2::theme_set(ggplot2::theme_light(base_size = params[["gg_fontsize"]]))
 ```
 
 ```{r data}
@@ -209,7 +210,7 @@ system(command = paste(
 * Minor allele frequency (MAF) threshold: 
     `` `r params[["maf_threshold"]]` ``
 * Hardy-Weinberg equilibrium pvalue: 
-    `` `r scientific(params[["hwe_pvalue"]])` ``
+    `` `r scales::scientific(params[["hwe_pvalue"]])` ``
 * Mendelian error rate threshold:
     + Max per-trio error rate: 
         `` `r if (params[["includes_relatives"]]) params[["mendelian_samples"]] else "not applicable"` `` 
@@ -223,8 +224,8 @@ system(command = paste(
 Genotyped using `r if (is.null(params[["array"]])) "unspecified" else params[["array"]]` array.
 
 ```{r cohort_overview, include = FALSE}
-samples <- mutate_at(
-  .tbl = read.table(paste0(temp_directory, "/raw_data.fam")), 
+samples <- dplyr::mutate_at(
+  .tbl = utils::read.table(paste0(temp_directory, "/raw_data.fam")), 
   .vars = 1:2, 
   .funs = as.character
 )
@@ -234,35 +235,35 @@ samples_duplicated <- table(factor(
   levels = c(FALSE, TRUE)
 ))[["TRUE"]]
 
-snps_number <- nrow(fread(input = paste0(temp_directory, "/raw_data.bim"), select = 1))
+snps_number <- nrow(data.table::fread(input = paste0(temp_directory, "/raw_data.bim"), select = 1))
 
 cohort_details <- paste0(dirname(params[["input_directory"]]), "/Details_Cohorts.xlsx")
 if (file.exists(cohort_details)) {
-  recruit_centre <- read_xlsx(path = cohort_details, sheet = 1) %>% 
-    select(Sample.Name = 1, Cohort = 2, Gender = 3) %>%
-    filter(Sample.Name %in% samples[[2]]) %>% 
-    mutate(Sample.Name = as.character(Sample.Name))
+  recruit_centre <- readxl::read_xlsx(path = cohort_details, sheet = 1) %>% 
+    dplyr::select(Sample.Name = 1, Cohort = 2, Gender = 3) %>%
+    dplyr::filter(Sample.Name %in% samples[[2]]) %>% 
+    dplyr::mutate(Sample.Name = as.character(Sample.Name))
 } else {
   recruit_centre <- samples %>%
-    select(Sample.Name = 2, Gender = 5) %>%
-    mutate(Cohort = !!params[["cohort_name"]]) %>%
-    mutate(Sample.Name = as.character(Sample.Name))
+    dplyr::select(Sample.Name = 2, Gender = 5) %>%
+    dplyr::mutate(Cohort = !!params[["cohort_name"]]) %>%
+    dplyr::mutate(Sample.Name = as.character(Sample.Name))
 }
 
 recruit_centre_table <- recruit_centre %>%
-  mutate(Gender = factor(Gender, levels = c(1, 2, 0))) %>% 
-  group_by(Cohort, Gender, .drop = FALSE) %>% 
-  tally() %>%
-  spread(Gender, n) %>% 
-  rowwise() %>% 
-  mutate(Total = sum(`0`, `1`, `2`)) %>% 
-  ungroup() %>% 
-  rename(
+  dplyr::mutate(Gender = factor(Gender, levels = c(1, 2, 0))) %>% 
+  dplyr::group_by(Cohort, Gender, .drop = FALSE) %>% 
+  dplyr::tally() %>%
+  tidyr::spread(Gender, n) %>% 
+  dplyr::rowwise() %>% 
+  dplyr::mutate(Total = sum(`0`, `1`, `2`)) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::rename(
     male = `1`,
     female = `2`,
     unspecified = `0`
   ) %>%
-  add_row(
+  dplyr::add_row(
     Cohort = "ALL", 
     Total = sum(.$Total),
     male = sum(.$male),
@@ -273,9 +274,9 @@ recruit_centre_table <- recruit_centre %>%
 
 PLINK files includes:
 
-* **`r comma(nrow(recruit_centre))`** samples  
-    + Note: **`r comma(samples_duplicated)`** samples seemed to have duplicates
-* **`r comma(snps_number)`** variants
+* **`r scales::comma(nrow(recruit_centre))`** samples  
+    + Note: **`r scales::comma(samples_duplicated)`** samples seemed to have duplicates
+* **`r scales::comma(snps_number)`** variants
 
 ```{r cohort-overview-table}
 pretty_kable(
@@ -285,8 +286,8 @@ pretty_kable(
   caption = "Number of samples per cohorts.", 
   echo = FALSE
 ) %>%
-  row_spec(row = nrow(recruit_centre_table), bold = TRUE) %>%
-  row_spec(c(" " = 1, "Gender" = 3, " " = 1))
+  kableExtra::row_spec(row = nrow(recruit_centre_table), bold = TRUE) %>%
+  kableExtra::row_spec(c(" " = 1, "Gender" = 3, " " = 1))
 ```
 
 
@@ -304,15 +305,15 @@ system(command = paste(
   "--out", paste0(temp_directory, "/raw_data")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
-callrate_samples <- fread(paste0(temp_directory, "/raw_data.imiss")) %>%
-  mutate_at(.vars = c("FID", "IID"), as.character) %>% 
-  arrange(F_MISS) %>%
-  mutate(labs = ifelse(F_MISS > 1 - params[["callrate_samples"]], IID, NA))
+callrate_samples <- data.table::fread(paste0(temp_directory, "/raw_data.imiss")) %>%
+  dplyr::mutate_at(.vars = c("FID", "IID"), as.character) %>% 
+  dplyr::arrange(F_MISS) %>%
+  dplyr::mutate(labs = ifelse(F_MISS > 1 - params[["callrate_samples"]], IID, NA))
 
 samples_toexclude <- callrate_samples %>%
-  filter(!is.na(labs)) %>%
-  select(FID, IID) %>%
-  mutate(QC = "Sample_Call_Rate")
+  dplyr::filter(!is.na(labs)) %>%
+  dplyr::select(FID, IID) %>%
+  dplyr::mutate(QC = "Sample_Call_Rate")
 
 system(command = paste(
   params[["bin_path"]][["plink"]], 
@@ -321,12 +322,12 @@ system(command = paste(
   "--out", paste0(temp_directory, "/raw_data")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
-freqsnp <- fread(paste0(temp_directory, "/raw_data.frq"))
+freqsnp <- data.table::fread(paste0(temp_directory, "/raw_data.frq"))
 
 freqsnp %>% 
-  filter(MAF >= params[["maf_threshold"]]) %>% 
+  dplyr::filter(MAF >= params[["maf_threshold"]]) %>% 
   .[["SNP"]] %>% 
-  write.table(
+  utils::write.table(
     col.names = FALSE, 
     row.names = FALSE, 
     quote = FALSE,
@@ -334,13 +335,13 @@ freqsnp %>%
   )
 
 snp_maf_lower <- freqsnp %>% 
-  filter(MAF < params[["maf_threshold"]]) %>% 
+  dplyr::filter(MAF < params[["maf_threshold"]]) %>% 
   .[["SNP"]]
 
 is_maf_lower <- length(snp_maf_lower) > 0
 
 if (is_maf_lower) {
-  write.table(
+  utils::write.table(
     snp_maf_lower, 
     col.names = FALSE, row.names = FALSE, quote = FALSE,
     file = paste0(temp_directory, "/raw_data_maf_lower.txt")
@@ -365,8 +366,8 @@ if (is_maf_lower) {
   ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 }
 
-callrate_samples_geq <- arrange(
-  .data = fread(paste0(temp_directory, "/raw_data_maf_geq.imiss")), 
+callrate_samples_geq <- dplyr::arrange(
+  .data = data.table::fread(paste0(temp_directory, "/raw_data_maf_geq.imiss")), 
   F_MISS
 )
 
@@ -383,8 +384,8 @@ prop_maf_geq <- sum(
 prop_diff_maf_geq <- abs((prop_maf_geq - prop_all) / prop_all) >= 0.05
 
 if (is_maf_lower) {
-  callrate_samples_lower <- arrange(
-    .data = fread(paste0(temp_directory, "/raw_data_maf_lower.imiss")), 
+  callrate_samples_lower <- dplyr::arrange(
+    .data = data.table::fread(paste0(temp_directory, "/raw_data_maf_lower.imiss")), 
     F_MISS
   )
   prop_maf_lower <- sum(
@@ -404,7 +405,7 @@ callrate_thresholds_table <- cbind(
   rowSums(sapply(callrate_samples_geq[, "F_MISS"], ">", 1 - callrate_thresholds))
 ) %>%
   as.data.frame() %>%
-  mutate(callrate_thresholds = percent(callrate_thresholds, accuracy = 0.01)) %>%
+  dplyr::mutate(callrate_thresholds = scales::percent(callrate_thresholds, accuracy = 0.01)) %>%
   `colnames<-`(c(
     "Call rate threshold", 
     "Samples to exclude\n(all variants)", 
@@ -412,23 +413,23 @@ callrate_thresholds_table <- cbind(
   ))
 
 callrate_samples_toexclude <- callrate_samples %>%
-  filter(F_MISS > 1 - params[["callrate_samples"]]) %>%
-  mutate(Call_Rate = 1 - F_MISS) %>%
-  arrange(desc(Call_Rate)) %>%
-  select(FID, IID, Call_Rate)
+  dplyr::filter(F_MISS > 1 - params[["callrate_samples"]]) %>%
+  dplyr::mutate(Call_Rate = 1 - F_MISS) %>%
+  dplyr::arrange(dplyr::desc(Call_Rate)) %>%
+  dplyr::select(FID, IID, Call_Rate)
 ```
 
 Call rate was computed using the `--missing` command in PLINK. 
 
-A call rate lower than `r percent(params[["callrate_samples"]], accuracy = 0.01)` was observed for **`r comma(nrow(callrate_samples_toexclude))`** samples, leading to their exclusion.
+A call rate lower than `r scales::percent(params[["callrate_samples"]], accuracy = 0.01)` was observed for **`r scales::comma(nrow(callrate_samples_toexclude))`** samples, leading to their exclusion.
 
 ```{r sample-call-rate-02, eval = !is.na(prop_diff_maf_lower) & prop_diff_maf_lower}
 cat(
   "Note: the sample-based call rate was different for ", 
   "variants with MAF < ", params[["maf_threshold"]],
-  " (", percent(prop_maf_lower, accuracy = 0.01), ") ", 
+  " (", scales::percent(prop_maf_lower, accuracy = 0.01), ") ", 
   "compared to the call rate based on all variants ", 
-  "(", percent(prop_all, accuracy = 0.01), ").\n\n", 
+  "(", scales::percent(prop_all, accuracy = 0.01), ").\n\n", 
   sep = ""
 )
 ```
@@ -437,9 +438,9 @@ cat(
 cat(
   "Note: the sample-based call rate was different for ",
   "variants with MAF ≥ ", params[["maf_threshold"]], 
-  " (", percent(prop_maf_geq, accuracy = 0.01), ") ", 
+  " (", scales::percent(prop_maf_geq, accuracy = 0.01), ") ", 
   "compared to the call rate based on all variants ",
-  "(", percent(prop_all, accuracy = 0.01), ").\n\n", 
+  "(", scales::percent(prop_all, accuracy = 0.01), ").\n\n", 
   sep = ""
 )
 ```
@@ -450,48 +451,48 @@ pretty_kable(
   align = "c", 
   table.attr = "style='width:65%;'",
   caption = paste(
-    "Number of samples to exclude for", replace_number(length(callrate_thresholds)), "call rate thresholds."
+    "Number of samples to exclude for", qdap::replace_number(length(callrate_thresholds)), "call rate thresholds."
   )
 )
 ```
 
 ```{r sample-call-rate-05, fig.cap = "Sample call rate."}
-ggplot(
+ggplot2::ggplot(
   data = callrate_samples,
-  mapping = aes(x = length(F_MISS):1, y = 1 - F_MISS)
+  mapping = ggplot2::aes(x = length(F_MISS):1, y = 1 - F_MISS)
 ) +
-  geom_point(
-    colour = viridis_pal(begin = 0.5, end = 0.5)(1), 
+  ggplot2::geom_point(
+    colour = scales::viridis_pal(begin = 0.5, end = 0.5)(1), 
     shape = 1, 
     na.rm = TRUE
   ) +
-  geom_label_repel(
-    mapping = aes(label = labs),
-    min.segment.length = unit(0, "lines"),
+  ggrepel::geom_label_repel(
+    mapping = ggplot2::aes(label = labs),
+    min.segment.length = ggplot2::unit(0, "lines"),
     force = 10, 
     alpha = 0.7, 
     size = 2.5, 
     na.rm = TRUE
   ) +
-  geom_hline(
-    mapping = aes(yintercept = params[["callrate_samples"]]),
+  ggplot2::geom_hline(
+    mapping = ggplot2::aes(yintercept = params[["callrate_samples"]]),
     colour = "firebrick2", 
     linetype = 2
   ) +
-  scale_x_continuous(labels = comma_format()) +
-  scale_y_continuous(labels = percent_format(accuracy = 0.01)) +
-  labs(x = "Samples", y = "Call rate")
+  ggplot2::scale_x_continuous(labels = scales::comma_format()) +
+  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)) +
+  ggplot2::labs(x = "Samples", y = "Call rate")
 ```
 
 ```{r sample-call-rate-06, eval = nrow(callrate_samples_toexclude) != 0}
 callrate_samples_toexclude %>% 
-  mutate(Call_Rate = percent(Call_Rate, accuracy = 0.01)) %>% 
+  dplyr::mutate(Call_Rate = scales::percent(Call_Rate, accuracy = 0.01)) %>% 
   pretty_kable(
     align = "c", 
     table.attr = "style='width:65%;'",
     caption = paste0(
       "Samples to be excluded for a call rate threshold of ", 
-      percent(params[["callrate_samples"]], accuracy = 0.01), 
+      scales::percent(params[["callrate_samples"]], accuracy = 0.01), 
       "."
     )
   )
@@ -516,34 +517,34 @@ if (!gender_file_check) {
 ```
 
 ```{r gender-check-02, eval = gender_file_check, include = FALSE}
-sexcheck <- fread(paste0(temp_directory, "/raw_data.sexcheck")) %>%
-  mutate_at(.vars = c("FID", "IID"), as.character) %>% 
-  full_join(y = callrate_samples, by = c("FID", "IID")) %>%
-  left_join(y = recruit_centre, by = c("IID" = "Sample.Name")) %>%
-  mutate(
+sexcheck <- data.table::fread(paste0(temp_directory, "/raw_data.sexcheck")) %>%
+  dplyr::mutate_at(.vars = c("FID", "IID"), as.character) %>% 
+  dplyr::full_join(y = callrate_samples, by = c("FID", "IID")) %>%
+  dplyr::left_join(y = recruit_centre, by = c("IID" = "Sample.Name")) %>%
+  dplyr::mutate(
     sex_discrepancy = Gender != SNPSEX,
     STATUS = ifelse(sex_discrepancy | is.na(sex_discrepancy) | `F` >= 0.20 & `F` < 0.80, "PROBLEM", STATUS),
     labs = ifelse(STATUS == "PROBLEM" & F_MISS < 1 - params[["callrate_samples"]], IID, NA)
   )
 
-sexcheck_problem <- filter(sexcheck, STATUS == "PROBLEM")
+sexcheck_problem <- dplyr::filter(sexcheck, STATUS == "PROBLEM")
 
 sexcheck_discrepancy <- sexcheck_problem %>%
-  filter(sex_discrepancy) %>%
-  select(FID, IID) %>% 
-  mutate(QC = "Gender_Discrepancy")
+  dplyr::filter(sex_discrepancy) %>%
+  dplyr::select(FID, IID) %>% 
+  dplyr::mutate(QC = "Gender_Discrepancy")
 
 sexcheck_missing <- sexcheck_problem %>%
-  filter(is.na(sex_discrepancy)) %>%
-  select(FID, IID) %>% 
-  mutate(QC = "Gender_Missing")
+  dplyr::filter(is.na(sex_discrepancy)) %>%
+  dplyr::select(FID, IID) %>% 
+  dplyr::mutate(QC = "Gender_Missing")
 
 sexcheck_other <- sexcheck_problem %>%
-  filter(!sex_discrepancy) %>%
-  select(FID, IID) %>% 
-  mutate(QC = "Gender_F")
+  dplyr::filter(!sex_discrepancy) %>%
+  dplyr::select(FID, IID) %>% 
+  dplyr::mutate(QC = "Gender_F")
 
-samples_toexclude <- bind_rows(
+samples_toexclude <- dplyr::bind_rows(
   samples_toexclude,
   sexcheck_discrepancy,
   sexcheck_missing,
@@ -553,66 +554,66 @@ samples_toexclude <- bind_rows(
 
 The mean homozygosity rate across the X-chromosome was computed using the `--check-sex` command in PLINK.
 
-For **`r comma(nrow(sexcheck_problem))`** samples 
-(including **`r comma(sum(sexcheck_problem[, "Gender"] == 0))`**, 
-with unspecified sex and **`r comma(sum(sexcheck_problem[, "SNPSEX"] == 0))`**
+For **`r scales::comma(nrow(sexcheck_problem))`** samples 
+(including **`r scales::comma(sum(sexcheck_problem[, "Gender"] == 0))`**, 
+with unspecified sex and **`r scales::comma(sum(sexcheck_problem[, "SNPSEX"] == 0))`**
 samples with undetermined genotypic sex), the gender discrepancy between
 genotyping data and reported gender could not be resolved, and have been flagged.
 
 `r if (!file.exists(cohort_details)) cat("Note: Gender phenotype was read from PLINK files.\n")`
 
 ```{r gender-check-03, eval = gender_file_check, fig.cap = paste("The homozygosity rate for each sample (estimated using X-chromosomal variants)", "plotted against the proportion of missing genotypes per sample.", "Male samples are expected to have a homozygosity rate greater than 0.8,", "female samples are expected to have a homozygosity rate less than 0.2.", "Samples for which gender information is discordant or missing were denoted by red cross.")}
-ggplot(
-  data = drop_na(sexcheck, `F`),
-  mapping = aes(
+ggplot2::ggplot(
+  data = tidyr::drop_na(sexcheck, `F`),
+  mapping = ggplot2::aes(
     x = `F`, 
     y = 1 - F_MISS, 
     colour = STATUS, 
     shape = sex_discrepancy
   )
 ) +
-  geom_rect(
-    mapping = aes(xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = params[["callrate_samples"]]), 
+  ggplot2::geom_rect(
+    mapping = ggplot2::aes(xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = params[["callrate_samples"]]), 
     fill = "grey95",
     colour = "transparent"
   ) +
-  annotate(
+  ggplot2::annotate(
     geom = "rect",
     xmin = -Inf, xmax = -0.2, ymin = -Inf, ymax = Inf, 
     fill = "firebrick2",
     alpha = 0.10,
     colour = "transparent"
   ) +
-  annotate(
+  ggplot2::annotate(
     geom = "rect",
     xmin = -0.2, xmax = 0.2, ymin = -Inf, ymax = Inf, 
     fill = "firebrick2",
     alpha = 0.2,
     colour = "transparent"
   ) +
-  annotate(
+  ggplot2::annotate(
     geom = "rect",
     xmin = 0.8, xmax = 1, ymin = -Inf, ymax = Inf, 
     fill = "dodgerblue",
     alpha = 0.2,
     colour = "transparent"
   ) +
-  geom_point(na.rm = TRUE) +
-  geom_hline(yintercept = params[["callrate_samples"]], colour = "firebrick2", linetype = 2) +
-  geom_label_repel(
-    mapping = aes(label = labs),
-    min.segment.length = unit(0, "lines"),
+  ggplot2::geom_point(na.rm = TRUE) +
+  ggplot2::geom_hline(yintercept = params[["callrate_samples"]], colour = "firebrick2", linetype = 2) +
+  ggrepel::geom_label_repel(
+    mapping = ggplot2::aes(label = labs),
+    min.segment.length = ggplot2::unit(0, "lines"),
     force = 10, 
     alpha = 0.7, 
     size = 2.5, 
     na.rm = TRUE
   ) +
-  scale_colour_manual(values = c(viridis_pal(begin = 0.5, end = 0.5)(1), "firebrick2")) +
-  scale_shape_manual(values = c(1, 3)) +
-  scale_x_continuous(breaks = seq(0, 1, 0.2)) +
-  scale_y_continuous(labels = percent_format(accuracy = 0.01)) +
-  labs(x = "Homozygosity rate", y = "Call rate") +
-  theme(legend.position = "none")
+  ggplot2::scale_colour_manual(values = c(scales::viridis_pal(begin = 0.5, end = 0.5)(1), "firebrick2")) +
+  ggplot2::scale_shape_manual(values = c(1, 3)) +
+  ggplot2::scale_x_continuous(breaks = seq(0, 1, 0.2)) +
+  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)) +
+  ggplot2::labs(x = "Homozygosity rate", y = "Call rate") +
+  ggplot2::theme(legend.position = "none")
 ```
 
 
@@ -636,13 +637,13 @@ if (is_maf_lower) {
   ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 }
 
-heterozygosity <- fread(paste0(temp_directory, "/raw_data_auto.het")) %>%
-  mutate_at(.vars = c("FID", "IID"), as.character) %>% 
-  rename(N.NM. = `N(NM)`, O.HOM. = `O(HOM)`, E.HOM. = `E(HOM)`) %>%
-  full_join(y = callrate_samples, by = c("FID", "IID")) %>%
-  group_by(F_MISS < 1 - params[["callrate_samples"]]) %>% 
-  do(
-    mutate(.,
+heterozygosity <- data.table::fread(paste0(temp_directory, "/raw_data_auto.het")) %>%
+  dplyr::mutate_at(.vars = c("FID", "IID"), as.character) %>% 
+  dplyr::rename(N.NM. = `N(NM)`, O.HOM. = `O(HOM)`, E.HOM. = `E(HOM)`) %>%
+  dplyr::full_join(y = callrate_samples, by = c("FID", "IID")) %>%
+  dplyr::group_by(F_MISS < 1 - params[["callrate_samples"]]) %>% 
+  dplyr::do(
+    dplyr::mutate(.,
       hrate = (N.NM. - O.HOM.) / N.NM.,
       colour = sqrt(
         (hrate - mean(hrate, na.rm = TRUE))^2 + 
@@ -650,37 +651,37 @@ heterozygosity <- fread(paste0(temp_directory, "/raw_data_auto.het")) %>%
       ), 
       labs = ifelse(
         test = F_MISS < 1 - params[["callrate_samples"]] & ( 
-          hrate > mean(hrate) + sd(hrate * params[["heterozygosity_treshold"]]) | 
-            hrate < mean(hrate) - sd(hrate * params[["heterozygosity_treshold"]])
+          hrate > mean(hrate) + stats::sd(hrate * params[["heterozygosity_treshold"]]) | 
+            hrate < mean(hrate) - stats::sd(hrate * params[["heterozygosity_treshold"]])
         ), 
         yes = IID, 
         no = NA
       )
     )
   ) %>% 
-  ungroup()
+  dplyr::ungroup()
 
 if (is_maf_lower) {
-  heterozygosity_maf_lower <- fread(paste0(temp_directory, "/raw_data_maf_lower.het")) %>%
-    mutate_at(.vars = c("FID", "IID"), as.character) %>% 
-    rename(N.NM. = `N(NM)`, O.HOM. = `O(HOM)`, E.HOM. = `E(HOM)`) %>%
-    full_join(y = callrate_samples, by = c("FID", "IID")) %>%
-    group_by(F_MISS < 1 - params[["callrate_samples"]]) %>% 
-    do(
-      mutate(.,
+  heterozygosity_maf_lower <- data.table::fread(paste0(temp_directory, "/raw_data_maf_lower.het")) %>%
+    dplyr::mutate_at(.vars = c("FID", "IID"), as.character) %>% 
+    dplyr::rename(N.NM. = `N(NM)`, O.HOM. = `O(HOM)`, E.HOM. = `E(HOM)`) %>%
+    dplyr::full_join(y = callrate_samples, by = c("FID", "IID")) %>%
+    dplyr::group_by(F_MISS < 1 - params[["callrate_samples"]]) %>% 
+    dplyr::do(
+      dplyr::mutate(.,
         hrate = (N.NM. - O.HOM.) / N.NM.,
         colour = sqrt((hrate - mean(hrate, na.rm = TRUE))^2 + (F_MISS - mean(F_MISS, na.rm = TRUE))^2), 
         labs = ifelse(
           test = F_MISS < 1 - params[["callrate_samples"]] & ( 
-            hrate > mean(hrate) + sd(hrate * params[["heterozygosity_treshold"]]) | 
-              hrate < mean(hrate) - sd(hrate * params[["heterozygosity_treshold"]])
+            hrate > mean(hrate) + stats::sd(hrate * params[["heterozygosity_treshold"]]) | 
+              hrate < mean(hrate) - stats::sd(hrate * params[["heterozygosity_treshold"]])
           ), 
           yes = IID, 
           no = NA
         )
       )
     ) %>% 
-  ungroup()
+  dplyr::ungroup()
 } else {
   heterozygosity_maf_lower <- data.frame(matrix(
     NA,
@@ -697,206 +698,206 @@ The observed heterozygosity rate per sample was computed using the formula
 N(NM) and O(Hom) were obtained using the `--het` command in PLINK.
 
 ```{r heterozygosity-02, include = FALSE}
-p_heteR <- ggplot(
+p_heteR <- ggplot2::ggplot(
   data = heterozygosity,
-  mapping = aes(x = 1 - F_MISS, y = hrate)
+  mapping = ggplot2::aes(x = 1 - F_MISS, y = hrate)
 ) +
-  geom_rect(
-    mapping = aes(ymin = -Inf, ymax = Inf, xmin = -Inf, xmax = params[["callrate_samples"]]), 
+  ggplot2::geom_rect(
+    mapping = ggplot2::aes(ymin = -Inf, ymax = Inf, xmin = -Inf, xmax = params[["callrate_samples"]]), 
     fill = "grey95",
     colour = "transparent"
   ) +
-  geom_point(
-    mapping = aes(colour = colour),
+  ggplot2::geom_point(
+    mapping = ggplot2::aes(colour = colour),
     shape = 1, 
     na.rm = TRUE
   ) +
-  geom_vline(
-    mapping = aes(xintercept = params[["callrate_samples"]]),
+  ggplot2::geom_vline(
+    mapping = ggplot2::aes(xintercept = params[["callrate_samples"]]),
     colour = "firebrick2", 
     linetype = 2
   ) +
-  geom_hline(
-    data = filter(heterozygosity, F_MISS < 1 - params[["callrate_samples"]]),
-    mapping = aes(
+  ggplot2::geom_hline(
+    data = dplyr::filter(heterozygosity, F_MISS < 1 - params[["callrate_samples"]]),
+    mapping = ggplot2::aes(
       yintercept = mean(hrate, na.rm = TRUE) - 
-        sd(hrate, na.rm = TRUE) * params[["heterozygosity_treshold"]]
+        stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_treshold"]]
     ),
     colour = "firebrick2", 
     linetype = 2
   ) +
-  geom_hline(
-    data = filter(heterozygosity, F_MISS < 1 - params[["callrate_samples"]]),
-    mapping = aes(
+  ggplot2::geom_hline(
+    data = dplyr::filter(heterozygosity, F_MISS < 1 - params[["callrate_samples"]]),
+    mapping = ggplot2::aes(
       yintercept = mean(hrate, na.rm = TRUE) + 
-        sd(hrate, na.rm = TRUE) * params[["heterozygosity_treshold"]]
+        stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_treshold"]]
     ),
     colour = "firebrick2", 
     linetype = 2
   ) +
-  geom_label_repel(
-    aes(label = labs),
-    min.segment.length = unit(0, "lines"),
+  ggrepel::geom_label_repel(
+    ggplot2::aes(label = labs),
+    min.segment.length = ggplot2::unit(0, "lines"),
     force = 30, 
     alpha = 0.7, 
     size = 2.5, 
     na.rm = TRUE
   ) + 
-  scale_colour_viridis_c(begin = 0.2, end = 0.8, trans = "sqrt") +
-  labs(x = "Call rate", y = "Heterozygosity rate") +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1), 
+  ggplot2::scale_colour_viridis_c(begin = 0.2, end = 0.8, trans = "sqrt") +
+  ggplot2::labs(x = "Call rate", y = "Heterozygosity rate") +
+  ggplot2::theme(
+    axis.text.x = ggplot2::element_text(angle = 45, hjust = 1), 
     legend.position = "none"
   )
 
 if (is_maf_lower) {
-  p_heteR_maf_lower <- ggplot(
+  p_heteR_maf_lower <- ggplot2::ggplot(
     data = heterozygosity_maf_lower,
-    mapping = aes(x = 1 - F_MISS, y = hrate)
+    mapping = ggplot2::aes(x = 1 - F_MISS, y = hrate)
   ) +
-    geom_rect(
-      mapping = aes(ymin = -Inf, ymax = Inf, xmin = -Inf, xmax = params[["callrate_samples"]]), 
+    ggplot2::geom_rect(
+      mapping = ggplot2::aes(ymin = -Inf, ymax = Inf, xmin = -Inf, xmax = params[["callrate_samples"]]), 
       fill = "grey95",
       colour = "transparent"
     ) +
-    geom_point(
-      mapping = aes(colour = colour),
+    ggplot2::geom_point(
+      mapping = ggplot2::aes(colour = colour),
       shape = 1, 
       na.rm = TRUE
     ) +
-    geom_vline(
-      mapping = aes(xintercept = params[["callrate_samples"]]),
+    ggplot2::geom_vline(
+      mapping = ggplot2::aes(xintercept = params[["callrate_samples"]]),
       colour = "firebrick2", 
       linetype = 2
     ) +
-    geom_hline(
-      data = filter(heterozygosity_maf_lower, F_MISS < 1 - params[["callrate_samples"]]),
-      mapping = aes(
+    ggplot2::geom_hline(
+      data = dplyr::filter(heterozygosity_maf_lower, F_MISS < 1 - params[["callrate_samples"]]),
+      mapping = ggplot2::aes(
         yintercept = mean(hrate, na.rm = TRUE) - 
-          sd(hrate, na.rm = TRUE) * params[["heterozygosity_treshold"]]
+          stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_treshold"]]
       ),
       colour = "firebrick2", 
       linetype = 2
     ) +
-    geom_hline(
-      data = filter(heterozygosity_maf_lower, F_MISS < 1 - params[["callrate_samples"]]),
-      mapping = aes(
+    ggplot2::geom_hline(
+      data = dplyr::filter(heterozygosity_maf_lower, F_MISS < 1 - params[["callrate_samples"]]),
+      mapping = ggplot2::aes(
         yintercept = mean(hrate, na.rm = TRUE) + 
-          sd(hrate, na.rm = TRUE) * params[["heterozygosity_treshold"]]
+          stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_treshold"]]
       ),
       colour = "firebrick2", 
       linetype = 2
     ) +
-    geom_label_repel(
-      aes(label = labs),
-      min.segment.length = unit(0, "lines"),
+    ggrepel::geom_label_repel(
+      ggplot2::aes(label = labs),
+      min.segment.length = ggplot2::unit(0, "lines"),
       force = 30, 
       alpha = 0.7, 
       size = 2.5, 
       na.rm = TRUE
     )+
-    scale_colour_viridis_c(begin = 0.2, end = 0.8, trans = "sqrt") +
-    labs(x = "Call rate", y = "Heterozygosity rate") +
-    theme(
-      axis.text.x = element_text(angle = 45, hjust = 1), 
+    ggplot2::scale_colour_viridis_c(begin = 0.2, end = 0.8, trans = "sqrt") +
+    ggplot2::labs(x = "Call rate", y = "Heterozygosity rate") +
+    ggplot2::theme(
+      axis.text.x = ggplot2::element_text(angle = 45, hjust = 1), 
       legend.position = "none"
     ) +
-    labs(
+    ggplot2::labs(
       x = paste0("Call rate (MAF < ", params[["maf_threshold"]], ")"), 
       y = "Heterozygosity rate"
     ) +
-    theme(
-      axis.text.x = element_text(angle = 45, hjust = 1), 
+    ggplot2::theme(
+      axis.text.x = ggplot2::element_text(angle = 45, hjust = 1), 
       legend.position = "none"
     )
 } else {
-  p_heteR_maf_lower <- ggplot(data = heterozygosity_maf_lower) +
-    geom_blank() +
-    theme(
-      axis.line = element_blank(),
-      axis.text = element_blank(),
-      axis.ticks = element_blank(),
-      axis.title = element_blank(),
+  p_heteR_maf_lower <- ggplot2::ggplot(data = heterozygosity_maf_lower) +
+    ggplot2::geom_blank() +
+    ggplot2::theme(
+      axis.line = ggplot2::element_blank(),
+      axis.text = ggplot2::element_blank(),
+      axis.ticks = ggplot2::element_blank(),
+      axis.title = ggplot2::element_blank(),
       legend.position = "none",
-      panel.background = element_blank(),
-      panel.border = element_blank(),
-      panel.grid = element_blank(),
-      plot.background = element_blank()
+      panel.background = ggplot2::element_blank(),
+      panel.border = ggplot2::element_blank(),
+      panel.grid = ggplot2::element_blank(),
+      plot.background = ggplot2::element_blank()
     ) +
-    annotate(
+    ggplot2::annotate(
       "text",
       label = paste0("No variants found with MAF < ", params[["maf_threshold"]]),
-      x = mean(na.omit(heterozygosity[["F_MISS"]])),
-      y = mean(na.omit(heterozygosity[["hrate"]]))
+      x = mean(stats::na.omit(heterozygosity[["F_MISS"]])),
+      y = mean(stats::na.omit(heterozygosity[["hrate"]]))
     )
 }
 
-samples_toexclude <- bind_rows(
+samples_toexclude <- dplyr::bind_rows(
   samples_toexclude,
   heterozygosity %>%
-    filter(!is.na(labs)) %>%
-    select(FID, IID) %>% 
-    mutate(QC = "Heterozygosity_Check")
+    dplyr::filter(!is.na(labs)) %>%
+    dplyr::select(FID, IID) %>% 
+    dplyr::mutate(QC = "Heterozygosity_Check")
 )
 
 if (is_maf_lower) {
-  samples_toexclude <- bind_rows(
+  samples_toexclude <- dplyr::bind_rows(
     samples_toexclude,
     heterozygosity_maf_lower %>%
-      filter(!is.na(labs)) %>%
-      select(FID, IID) %>% 
-      mutate(QC = paste0("Heterozygosity_Check_maf_", params[["maf_threshold"]]))
+      dplyr::filter(!is.na(labs)) %>%
+      dplyr::select(FID, IID) %>% 
+      dplyr::mutate(QC = paste0("Heterozygosity_Check_maf_", params[["maf_threshold"]]))
   )
 }
 ```
 
-```{r heterozygosity-05, fig.height = 4.7 * 1.5, fig.cap = paste0("Heterozygosity rate against the call rate per sample. ", "A and C, the heterozygosity rate computed based on all variants. ", "B and D, the heterozygosity estimated from variants with a MAF < ", params[["maf_threshold"]], ". ", "The horizontal red lines denote the ", replace_number(params[["heterozygosity_treshold"]]), " times standard deviations (SD) from the mean heterozygosity rate ", "and were used to define outlying heterozygosity.", " SD was computed only on samples with a call rate greater than or equal to ", percent(params[["callrate_samples"]], accuracy = 0.01), ".")}
-ggarrange(
+```{r heterozygosity-05, fig.height = 4.7 * 1.5, fig.cap = paste0("Heterozygosity rate against the call rate per sample. ", "A and C, the heterozygosity rate computed based on all variants. ", "B and D, the heterozygosity estimated from variants with a MAF < ", params[["maf_threshold"]], ". ", "The horizontal red lines denote the ", qdap::replace_number(params[["heterozygosity_treshold"]]), " times standard deviations (SD) from the mean heterozygosity rate ", "and were used to define outlying heterozygosity.", " SD was computed only on samples with a call rate greater than or equal to ", scales::percent(params[["callrate_samples"]], accuracy = 0.01), ".")}
+ggpubr::ggarrange(
   p_heteR + 
-    scale_x_continuous(labels = percent_format(accuracy = 0.01)) +
-    scale_y_continuous(labels = percent_format(accuracy = 0.01)), 
+    ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 0.01)) +
+    ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)), 
   p_heteR_maf_lower + 
-    scale_x_continuous(labels = percent_format(accuracy = 0.01)) +
-    scale_y_continuous(labels = percent_format(accuracy = 0.01)), 
+    ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 0.01)) +
+    ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)), 
   p_heteR + 
-    scale_x_continuous(
-      labels = percent_format(accuracy = 0.01),
+    ggplot2::scale_x_continuous(
+      labels = scales::percent_format(accuracy = 0.01),
       limits = c(params[["callrate_samples"]], NA)
     ) +
-    scale_y_continuous(
-      labels = percent_format(accuracy = 0.01),
+    ggplot2::scale_y_continuous(
+      labels = scales::percent_format(accuracy = 0.01),
       limits = range(
         c(
-          filter(heterozygosity, F_MISS < 1 - params[["callrate_samples"]])[["hrate"]],
-          filter(heterozygosity, F_MISS < 1 - params[["callrate_samples"]])[["hrate"]] %>% 
+          dplyr::filter(heterozygosity, F_MISS < 1 - params[["callrate_samples"]])[["hrate"]],
+          dplyr::filter(heterozygosity, F_MISS < 1 - params[["callrate_samples"]])[["hrate"]] %>% 
             (function(x) {
               c(
                 mean(x, na.rm = TRUE) + 
-                  sd(x, na.rm = TRUE) * params[["heterozygosity_treshold"]],
+                  stats::sd(x, na.rm = TRUE) * params[["heterozygosity_treshold"]],
                 mean(x, na.rm = TRUE) - 
-                  sd(x, na.rm = TRUE) * params[["heterozygosity_treshold"]]
+                  stats::sd(x, na.rm = TRUE) * params[["heterozygosity_treshold"]]
               )
             })(.)
         )
       )
     ),
   p_heteR_maf_lower + 
-    scale_x_continuous(
-      labels = percent_format(accuracy = 0.01),
+    ggplot2::scale_x_continuous(
+      labels = scales::percent_format(accuracy = 0.01),
       limits = c(params[["callrate_samples"]], NA)
     ) +
-    scale_y_continuous(
-      labels = percent_format(accuracy = 0.01),
+    ggplot2::scale_y_continuous(
+      labels = scales::percent_format(accuracy = 0.01),
       limits = range(
         c(
-          filter(heterozygosity_maf_lower, F_MISS < 1 - params[["callrate_samples"]])[["hrate"]],
-          filter(heterozygosity_maf_lower, F_MISS < 1 - params[["callrate_samples"]])[["hrate"]] %>% 
+          dplyr::filter(heterozygosity_maf_lower, F_MISS < 1 - params[["callrate_samples"]])[["hrate"]],
+          dplyr::filter(heterozygosity_maf_lower, F_MISS < 1 - params[["callrate_samples"]])[["hrate"]] %>% 
             (function(x) {
               c(
                 mean(x, na.rm = TRUE) + 
-                  sd(x, na.rm = TRUE) * params[["heterozygosity_treshold"]],
+                  stats::sd(x, na.rm = TRUE) * params[["heterozygosity_treshold"]],
                 mean(x, na.rm = TRUE) - 
-                  sd(x, na.rm = TRUE) * params[["heterozygosity_treshold"]]
+                  stats::sd(x, na.rm = TRUE) * params[["heterozygosity_treshold"]]
               )
             })(.)
         )
@@ -928,7 +929,7 @@ system(command = paste(
   "--out", paste0(temp_directory, "/raw_data_pruned")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
-raw_data_pruned <- fread(paste0(temp_directory, "/raw_data_pruned.fam"))
+raw_data_pruned <- data.table::fread(paste0(temp_directory, "/raw_data_pruned.fam"))
 max_n_pairs <- nrow(raw_data_pruned) * (nrow(raw_data_pruned) - 1 ) / 2
 
 system(command = paste(
@@ -947,22 +948,22 @@ system(command = paste(
   "--out", paste0(temp_directory, "/raw_data_pruned_Fast")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
-relatedness <- fread(paste0(temp_directory, "/raw_data_pruned_Fast.genome")) %>%
-  distinct() %>%
-  mutate(PI_HAT = as.numeric(PI_HAT)) %>% 
-  mutate_at(.vars = vars(matches("FID|IID")), .funs = as.character) %>% 
-  anti_join(
+relatedness <- data.table::fread(paste0(temp_directory, "/raw_data_pruned_Fast.genome")) %>%
+  dplyr::distinct() %>%
+  dplyr::mutate(PI_HAT = as.numeric(PI_HAT)) %>% 
+  dplyr::mutate_at(.vars = dplyr::vars(dplyr::vmatches("FID|IID")), .funs = as.character) %>% 
+  dplyr::anti_join(
     y = samples_toexclude, 
     by = c("FID1" = "FID", "IID1" = "IID")
   ) %>% 
-  anti_join(
+  dplyr::anti_join(
     y = samples_toexclude, 
     by = c("FID2" = "FID", "IID2" = "IID")
   )
 ```
 
-In order to identify pairs of samples (N = `r comma(nrow(raw_data_pruned))`, 
-Pairs = `r comma(max_n_pairs)`) who look too similar to each other, 
+In order to identify pairs of samples (N = `r scales::comma(nrow(raw_data_pruned))`, 
+Pairs = `r scales::comma(max_n_pairs)`) who look too similar to each other, 
 pairwise IBD (identity by descent) was computed, using the `--genome` command in PLINK.
 
 Prior to the analysis, the dataset was pruned to exclude high-LD-regions, 
@@ -980,7 +981,7 @@ data.frame(table(cut(
   include.lowest = TRUE
 ))) %>%
   `colnames<-`(c("IBD windows", "Pair count")) %>%
-  mutate(
+  dplyr::mutate(
     `IBD windows` = paste0(
       `IBD windows`,
       c(" = Second degree relatives", "", " = First degree relatives", "", " = MZ twins/duplicates")
@@ -998,56 +999,56 @@ data.frame(table(cut(
 
 ```{r relatedness-03, eval = !params[["includes_relatives"]]}
 related_samples <- relatedness %>%
-  select(FID1, IID1, FID2, IID2, PI_HAT) %>%
-  left_join(
+  dplyr::select(FID1, IID1, FID2, IID2, PI_HAT) %>%
+  dplyr::left_join(
     callrate_samples %>%
-      select(FID, IID, F_MISS) %>%
-      mutate_at(.vars = 1:2, as.character),
+      dplyr::select(FID, IID, F_MISS) %>%
+      dplyr::mutate_at(.vars = 1:2, as.character),
     by = c("FID1" = "FID", "IID1" = "IID")
   ) %>%
-  left_join(
-    callrate_samples %>%
-      select(FID, IID, F_MISS) %>%
-      mutate_at(.vars = 1:2, as.character),
+  dplyr::left_join(
+    dplyr::callrate_samples %>%
+      dplyr::select(FID, IID, F_MISS) %>%
+      dplyr::mutate_at(.vars = 1:2, as.character),
     by = c("FID2" = "FID", "IID2" = "IID"),
     suffix = c("1", "2")
   ) %>%
-  mutate(
-    Call_Rate1 = percent(1 - F_MISS1, accuracy = 0.01),
-    Call_Rate2 = percent(1 - F_MISS2, accuracy = 0.01)
+  dplyr::mutate(
+    Call_Rate1 = scales::percent(1 - F_MISS1, accuracy = 0.01),
+    Call_Rate2 = scales::percent(1 - F_MISS2, accuracy = 0.01)
   ) %>%
-  select(-F_MISS1, -F_MISS2) %>% 
-  arrange(desc(PI_HAT))
+  dplyr::select(-F_MISS1, -F_MISS2) %>% 
+  dplyr::arrange(dplyr::desc(PI_HAT))
                  
 if (nrow(related_samples) != 0) {
-    pretty_kable(
-      data = related_samples,
-      align = "c", 
-      table.attr = "style='width:65%;'",
-      caption = paste0(
-        "Pairs of samples with a proportion of IBD higher than ", params[["IBD_threshold"]], "."
-      )
+  pretty_kable(
+    data = related_samples,
+    align = "c", 
+    table.attr = "style='width:65%;'",
+    caption = paste0(
+      "Pairs of samples with a proportion of IBD higher than ", params[["IBD_threshold"]], "."
     )
+  )
 }
 
-if (n_distinct(select(recruit_centre, Cohort)) > 1) {
+if (dplyr::n_distinct(dplyr::select(recruit_centre, Cohort)) > 1) {
   cross_cohorts_IBD <- relatedness %>%
-    select(FID1, IID1, FID2, IID2, PI_HAT) %>%
-    left_join(
-      y = select(recruit_centre, -Gender),
+    dplyr::select(FID1, IID1, FID2, IID2, PI_HAT) %>%
+    dplyr::left_join(
+      y = dplyr::select(recruit_centre, -Gender),
       by = c("IID1" = "Sample.Name")
     ) %>%
-    left_join(
-      y = select(recruit_centre, -Gender),
+    dplyr::left_join(
+      y = dplyr::select(recruit_centre, -Gender),
       by = c("IID2" = "Sample.Name"),
       suffix = c("1", "2")
     ) %>%
-    filter(Cohort1 != Cohort2) %>%
-    arrange(desc(PI_HAT))
+    dplyr::filter(Cohort1 != Cohort2) %>%
+    dplyr::arrange(dplyr::desc(PI_HAT))
   
   if (nrow(cross_cohorts_IBD) > 0) {
     cat(
-      capitalize(replace_number(nrow(cross_cohorts_IBD))), 
+      Hmisc::capitalize(qdap::replace_number(nrow(cross_cohorts_IBD))), 
       "cross-cohort IBDs was found in the dataset.\n\n"
     )
     
@@ -1062,18 +1063,18 @@ if (n_distinct(select(recruit_centre, Cohort)) > 1) {
   }
 }
 
-samples_toexclude <- bind_rows(
+samples_toexclude <- dplyr::bind_rows(
   samples_toexclude,
   relatedness %>%
-    filter(PI_HAT >= params[["IBD_threshold"]]) %>% 
-    select(matches("FID|IID")) %>% 
-    unite(col = FID_IID1, FID1, IID1, sep = "_-_") %>% 
-    unite(col = FID_IID2, FID2, IID2, sep = "_-_") %>% 
-    gather(key = "FID_IID", value = "value") %>% 
-    separate(col = "value", into = c("FID", "IID"), sep = "_-_") %>% 
-    select(-FID_IID) %>% 
-    distinct(FID, IID) %>% 
-    mutate(QC = "Relatedness")
+    dplyr::filter(PI_HAT >= params[["IBD_threshold"]]) %>% 
+    dplyr::select(dplyr::matches("FID|IID")) %>% 
+    tidyr::unite(col = FID_IID1, FID1, IID1, sep = "_-_") %>% 
+    tidyr::unite(col = FID_IID2, FID2, IID2, sep = "_-_") %>% 
+    tidyr::gather(key = "FID_IID", value = "value") %>% 
+    tidyr::separate(col = "value", into = c("FID", "IID"), sep = "_-_") %>% 
+    dplyr::select(-FID_IID) %>% 
+    dplyr::distinct(FID, IID) %>% 
+    dplyr::mutate(QC = "Relatedness")
 )
 ```
 
@@ -1120,17 +1121,17 @@ if (!imendel_file_check) {
 ```
 
 ```{r imendel-error-02, eval = params[["includes_relatives"]] & imendel_file_check}
-mendel_errors <- fread(paste0(temp_directory, "/raw_data.imendel")) %>%
-  mutate_at(.vars = vars(FID, IID), as.character) %>% 
-  mutate(
+mendel_errors <- data.table::fread(paste0(temp_directory, "/raw_data.imendel")) %>%
+  dplyr::mutate_at(.vars = dplyr::vars(FID, IID), as.character) %>% 
+  dplyr::mutate(
     percentage = N / snps_number,
     labs = ifelse(percentage > params[["mendelian_samples"]], IID, NA),
     labs_fam = ifelse(percentage > params[["mendelian_samples"]], FID, NA)
   )
 
 # MAF >= 0.01
-mendel_errors_geq <- fread(paste0(temp_directory, "/raw_data_maf_geq.imendel")) %>%
-  mutate(percentage = N / snps_number)
+mendel_errors_geq <- data.table::fread(paste0(temp_directory, "/raw_data_maf_geq.imendel")) %>%
+  dplyr::mutate(percentage = N / snps_number)
 
 prop_maf_geq <- sum(mendel_errors_geq[["percentage"]] > params[["mendelian_samples"]]) / 
   nrow(mendel_errors_geq)
@@ -1142,8 +1143,8 @@ prop_diff_maf_geq <- abs((prop_maf_geq - prop_all) / prop_all) >= 0.05
 
 # MAF < 0.01
 if (is_maf_lower) {
-  mendel_errors_lower <- fread(paste0(temp_directory, "/raw_data_maf_lower.imendel")) %>% 
-    mutate(percentage = N / snps_number)
+  mendel_errors_lower <- data.table::fread(paste0(temp_directory, "/raw_data_maf_lower.imendel")) %>% 
+    dplyr::mutate(percentage = N / snps_number)
   
   prop_maf_lower <- sum(mendel_errors_lower[["percentage"]] > params[["mendelian_samples"]]) /
     nrow(mendel_errors_lower)
@@ -1156,8 +1157,8 @@ cat(
   "The per-trio error rate threshold is ", params[["mendelian_samples"]], ".",
   "\n\n",
   "Figure \\@ref(fig:imendel-error-03) shows the Mendel error per sample.  ", "\n",
-  comma(nrow(mendel_errors)), " samples (from ", n_distinct(mendel_errors[["FID"]]), " families)",
-  " had a Mendel error rate higher than ", percent(x = params[["mendelian_samples"]], accuracy = 0.01), 
+  scales::comma(nrow(mendel_errors)), " samples (from ", dplyr::n_distinct(mendel_errors[["FID"]]), " families)",
+  " had a Mendel error rate higher than ", scales::percent(x = params[["mendelian_samples"]], accuracy = 0.01), 
   " and were flagged (Table \\@ref(tab:imendel-error-04)).",
   "\n\n",
   sep = ""
@@ -1166,9 +1167,9 @@ cat(
 if (!is.na(prop_diff_maf_lower) & prop_diff_maf_lower) {
   cat(
     "Sample-wise Mendel error rate ratio is different for variants ",
-      "with MAF < 0.01 (", percent(prop_maf_lower, accuracy = 0.01), ") ",
+      "with MAF < 0.01 (", scales::percent(prop_maf_lower, accuracy = 0.01), ") ",
       "compared to Mendel error rate ratio for all variants ",
-      "(", percent(prop_all, accuracy = 0.01), ").\n\n",
+      "(", scales::percent(prop_all, accuracy = 0.01), ").\n\n",
     sep = ""
   )
 }
@@ -1176,9 +1177,9 @@ if (!is.na(prop_diff_maf_lower) & prop_diff_maf_lower) {
 if (!is.na(prop_diff_maf_geq) & prop_diff_maf_geq) {
   cat(
     "Sample-wise Mendel error rate ratio is different for variants ",
-      "with MAF > 0.01 (", percent(prop_maf_geq),") ",
+      "with MAF > 0.01 (", scales::percent(prop_maf_geq),") ",
       "compared to Mendel error rate ratio for all variants ",
-      "(", percent(prop_all, accuracy = 0.01), ").\n\n",
+      "(", scales::percent(prop_all, accuracy = 0.01), ").\n\n",
     sep = ""
   )
 }
@@ -1191,40 +1192,40 @@ cbind(
   rowSums(sapply(mendel_errors_geq[["percentage"]], ">", mendel_threshold))
 ) %>%
   as.data.frame() %>%
-  mutate(mendel_threshold = percent(x = mendel_threshold, accuracy = 0.01)) %>%
+  dplyr::mutate(mendel_threshold = scales::percent(x = mendel_threshold, accuracy = 0.01)) %>%
   `colnames<-`(c("Sample Mendel error threshold", "Samples to exclude", "Samples to exclude (MAF > 0.01)")) %>% 
   pretty_kable(
     align = "c", 
     table.attr = "style='width:65%;'",
     caption = paste(
-      "Number of samples to exclude for", replace_number(length(mendel_threshold)), "call rate thresholds."
+      "Number of samples to exclude for", qdap::replace_number(length(mendel_threshold)), "call rate thresholds."
     )
   )
 ```
 
 ```{r imendel-error-03, eval = params[["includes_relatives"]] & imendel_file_check, fig.cap = "Sample Mendel error rate."}
-ggplot(
-  data = arrange(mendel_errors, percent),
-  mapping = aes(
+ggplot2::ggplot(
+  data = dplyr::arrange(mendel_errors, percent),
+  mapping = ggplot2::aes(
     x = seq_len(nrow(mendel_errors)), 
     y = percent
   )
 ) +
-  geom_point(
-    colour = viridis_pal(begin = 0.5, end = 0.5)(1), 
+  ggplot2::geom_point(
+    colour = scales::viridis_pal(begin = 0.5, end = 0.5)(1), 
     shape = 1, 
     na.rm = TRUE
   ) +
-  geom_hline(
-    mapping = aes(
+  ggplot2::geom_hline(
+    mapping = ggplot2::aes(
       yintercept = params[["mendelian_samples"]]
     ), 
     colour = "firebrick2", 
     linetype = 2
   ) +
-  geom_label_repel(
-    mapping = aes(label = labs),
-    min.segment.length = unit(0, "lines"),
+  ggrepel::geom_label_repel(
+    mapping = ggplot2::aes(label = labs),
+    min.segment.length = ggplot2::unit(0, "lines"),
     segment.colour = "black", 
     colour = "black",
     force = 10, 
@@ -1232,35 +1233,35 @@ ggplot(
     size = 2.5,
     na.rm = TRUE
   ) +
-  scale_x_continuous(labels = comma_format()) +
-  scale_y_continuous(labels = percent_format(accuracy = 0.01)) +
-  labs(x = "Samples", y = "Mendel Error Rate")
+  ggplot2::scale_x_continuous(labels = scales::comma_format()) +
+  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)) +
+  ggplot2::labs(x = "Samples", y = "Mendel Error Rate")
 ```
 
 ```{r imendel-error-04, eval = params[["includes_relatives"]] & imendel_file_check}
 mendel_errors_samples <- mendel_errors %>%
-  filter(percentage > params[["mendelian_samples"]]) %>%
-  select(FID, IID, percentage) %>%
-  arrange(FID, IID) %>% 
-  mutate(QC = "Sample_Mendel_Error")
+  dplyr::filter(percentage > params[["mendelian_samples"]]) %>%
+  dplyr::select(FID, IID, percentage) %>%
+  dplyr::arrange(FID, IID) %>% 
+  dplyr::mutate(QC = "Sample_Mendel_Error")
 
 if (nrow(mendel_errors_samples)>0) {
   mendel_errors_samples %>% 
-    mutate(
-      `Sample Mendel error rate` = percent(x = percent, accuracy = 0.01)
+    dplyr::mutate(
+      `Sample Mendel error rate` = scales::percent(x = percent, accuracy = 0.01)
     ) %>% 
-    select(-percent, -QC) %>% 
+    dplyr::select(-percent, -QC) %>% 
     pretty_kable(
       align = "c", 
       table.attr = "style='width:65%;'",
       caption = paste0(
         "Samples to be checked for max per-trio error rate at ", 
-        percent(x = params[["mendelian_samples"]], accuracy = 0.01), "."
+        scales::percent(x = params[["mendelian_samples"]], accuracy = 0.01), "."
       )
     )
 }
 
-samples_toexclude <- bind_rows(
+samples_toexclude <- dplyr::bind_rows(
   samples_toexclude, 
   mendel_errors_samples
 )
@@ -1274,10 +1275,10 @@ samples_toexclude <- bind_rows(
 
 ```{r population-01, include = FALSE}
 ## Get Autosomal variants
-fread(paste0(temp_directory, "/raw_data.bim")) %>%
-  filter(V1 %in% seq(22)) %>%
-  select(V2) %>%
-  write.table(
+data.table::fread(paste0(temp_directory, "/raw_data.bim")) %>%
+  dplyr::filter(V1 %in% seq(22)) %>%
+  dplyr::select(V2) %>%
+  utils::write.table(
     file = paste0(temp_directory, "/raw_data_auto.txt"),
     quote = FALSE, 
     col.names = FALSE, 
@@ -1286,11 +1287,11 @@ fread(paste0(temp_directory, "/raw_data.bim")) %>%
 
 ## Remove bad quality samples (Call Rate and Heterozygosity)
 samples_toexclude_pca <- samples_toexclude %>% 
-  filter(grepl("Sample_Call_Rate|Heterozygosity_Check$", QC)) %>% 
-  distinct(FID, IID) %>% 
-  select(FID, IID)
+  dplyr::filter(grepl("Sample_Call_Rate|Heterozygosity_Check$", QC)) %>% 
+  dplyr::distinct(FID, IID) %>% 
+  dplyr::select(FID, IID)
 
-write.table(
+utils::write.table(
   x = samples_toexclude_pca,
   file = paste0(temp_directory, "/samples_toexclude_pca.txt"),
   sep = "\t", 
@@ -1327,17 +1328,17 @@ if (nrow(samples_toexclude_pca) > 0) {
 }
 
 ## Extract 1kgenome data
-fread(paste0(temp_directory, "/clean_data_tmp.bim")) %>%
-  filter(!V4 %in% unique(V4[duplicated(V4)])) %>%
-  select(V2) %>%
-  write.table(
+data.table::fread(paste0(temp_directory, "/clean_data_tmp.bim")) %>%
+  dplyr::filter(!V4 %in% unique(V4[duplicated(V4)])) %>%
+  dplyr::select(V2) %>%
+  utils::write.table(
     file = paste0(temp_directory, "/clean_data_snp.txt"),
     row.names = FALSE, 
     col.names = FALSE, 
     quote = FALSE
   )
 
-mclapply(seq_len(22), mc.cores = min(params[["n_cores"]], 22), function(i) {
+parallel::mclapply(seq_len(22), mc.cores = min(params[["n_cores"]], 22), function(i) {
   system(command = paste(
     params[["bin_path"]][["plink"]], 
     "--bfile", paste0(params[["ref1kg_genotypes"]], "Chr", i),
@@ -1357,7 +1358,7 @@ raw_data_1kgenome_files <- t(sapply(
 
 list_1kgenome <- paste0(temp_directory, "/1kgenome_small/1kgenome_small_files.txt")
 
-write.table(
+utils::write.table(
   x = raw_data_1kgenome_files,
   file = list_1kgenome,
   col.names = FALSE, 
@@ -1379,7 +1380,7 @@ system(command = paste(
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
 if (file.exists(paste0(out, "-merge.missnp"))) {
-  mclapply(seq_len(22), mc.cores = 22, function(i) {
+  parallel::mclapply(seq_len(22), mc.cores = 22, function(i) {
     system(command = paste(
       params[["bin_path"]][["plink"]], 
       "--bfile", paste0(params[["ref1kg_genotypes"]], "Chr", i),
@@ -1465,11 +1466,11 @@ system(command = paste(
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
 # Keep only variants in common between raw_data and 1kGenome
-intersect(
- fread(paste0(temp_directory, "/1kgenome_small/1kgenome_small_flipped_cleaned.bim"))[["V2"]],
- fread(paste0(temp_directory, "/clean_data_tmp_cleaned.bim"))[["V2"]]
+dplyr::intersect(
+ data.table::fread(paste0(temp_directory, "/1kgenome_small/1kgenome_small_flipped_cleaned.bim"))[["V2"]],
+ data.table::fread(paste0(temp_directory, "/clean_data_tmp_cleaned.bim"))[["V2"]]
 ) %>%
-  write.table(
+  utils::write.table(
     file = paste0(temp_directory, "/raw_data_1kgenome_snps.txt"),
     col.names = FALSE, 
     row.names = FALSE, 
@@ -1486,11 +1487,11 @@ system(command = paste(
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
 ## Check palindromic variants
-fread(paste0(temp_directory, "/raw_data_1kgenome.bim")) %>%
-  unite(alleles, V5, V6, remove = FALSE, sep = "") %>%
-  filter(alleles %in% c("GC", "CG", "AT", "TA")) %>%
-  select(V2) %>%
-  write.table(
+data.table::fread(paste0(temp_directory, "/raw_data_1kgenome.bim")) %>%
+  tidyr::unite(alleles, V5, V6, remove = FALSE, sep = "") %>%
+  dplyr::filter(alleles %in% c("GC", "CG", "AT", "TA")) %>%
+  dplyr::select(V2) %>%
+  utils::write.table(
     file = paste0(temp_directory, "/raw_data_1kgenome_palindromic.txt"),
     row.names = FALSE, 
     col.names = FALSE, 
@@ -1525,257 +1526,257 @@ system(command = paste(
 
 ## Analysis summary
 # variant
-n_good_snp <- nrow(fread(
+n_good_snp <- nrow(data.table::fread(
   input = paste0(temp_directory, "/clean_data_tmp.bim"), 
   select = 1
 ))
 
-n_good_snp_1kg <- nrow(fread(
+n_good_snp_1kg <- nrow(data.table::fread(
   input = paste0(temp_directory, "/raw_data_1kgenome.bim"), 
   select = 1
 ))
 
 # Samples
-n_samples <- nrow(fread(
+n_samples <- nrow(data.table::fread(
   input = paste0(temp_directory, "/raw_data_1kgenome.fam"), 
   select = 1
 ))
 
-n_samples_1kg <- nrow(fread(
+n_samples_1kg <- nrow(data.table::fread(
   input = paste0(temp_directory, "/1kgenome_small/1kgenome_small_flipped_cleaned.fam"), 
   select = 1
 ))
   
-data_pca <- bind_rows(
-  fread(paste0(temp_directory, "/clean_data_tmp.fam")) %>%
-    mutate(POP = "raw_data") %>%
-    select(V2, POP) %>%
-    rename(IID = "V2") %>% 
-    mutate(IID = as.character(IID)),
-  fread(params[["ref1kg_panel"]], fill = TRUE, header = TRUE) %>%
-    select(sample, pop) %>%
-    rename(IID = "sample", POP = "pop") %>% 
-    mutate(IID = as.character(IID))
+data_pca <- dplyr::bind_rows(
+  data.table::fread(paste0(temp_directory, "/clean_data_tmp.fam")) %>%
+    dplyr::mutate(POP = "raw_data") %>%
+    dplyr::select(V2, POP) %>%
+    dplyr::rename(IID = "V2") %>% 
+    dplyr::mutate(IID = as.character(IID)),
+  data.table::fread(params[["ref1kg_panel"]], fill = TRUE, header = TRUE) %>%
+    dplyr::select(sample, pop) %>%
+    dplyr::rename(IID = "sample", POP = "pop") %>% 
+    dplyr::mutate(IID = as.character(IID))
 ) %>%
-  filter(
-    IID %in% as.character(fread(paste0(temp_directory, "/raw_data_1kgenome.fam"))[["V2"]])
+  dplyr::filter(
+    IID %in% as.character(data.table::fread(paste0(temp_directory, "/raw_data_1kgenome.fam"))[["V2"]])
   ) %>%
-  left_join(
-    y = fread(paste0(temp_directory, "/raw_data_1kgenome.eigenvec")) %>%
+  dplyr::left_join(
+    y = data.table::fread(paste0(temp_directory, "/raw_data_1kgenome.eigenvec")) %>%
       `colnames<-`(c("FID", "IID", paste0("PC", seq_len(params[["pca_components"]])))) %>% 
-      mutate(IID = as.character(IID)),
+      dplyr::mutate(IID = as.character(IID)),
     by = "IID"
   ) %>%
-  mutate(
+  dplyr::mutate(
     POP = factor(
       x = POP, 
       levels = c("raw_data", sort(setdiff(unique(POP), "raw_data"), decreasing = TRUE))
     )
   ) %>%
-  rename(x = PC1, y = PC2, Population = POP) %>%
-  select(IID, Population, x, y) %>%
-  left_join(
-    y = aggregate(cbind(x, y) ~ Population, data = ., mean) %>%
+  dplyr::rename(x = PC1, y = PC2, Population = POP) %>%
+  dplyr::select(IID, Population, x, y) %>%
+  dplyr::left_join(
+    y = stats::aggregate(cbind(x, y) ~ Population, data = ., mean) %>%
       `colnames<-`(paste0(colnames(.), c("", ".centroid", ".centroid"))),
     by = "Population"
   ) %>%
-  mutate(dist = sqrt((x - x.centroid)^2 + (y - y.centroid)^2)) %>%
-  group_by(Population) %>%
-  mutate(
-    close = dist > (quantile(dist, 0.75) + diff(quantile(dist, c(0.25, 0.75))))
+  dplyr::mutate(dist = sqrt((x - x.centroid)^2 + (y - y.centroid)^2)) %>%
+  dplyr::group_by(Population) %>%
+  dplyr::mutate(
+    close = dist > (stats::quantile(dist, 0.75) + diff(stats::quantile(dist, c(0.25, 0.75))))
   ) %>%
-  ungroup()
+  dplyr::ungroup()
 
 ## Compute components inertia
-inertia_pca <- fread(paste0(temp_directory, "/raw_data_1kgenome.eigenval")) %>%
-  rownames_to_column("x") %>%
-  mutate(y = V1 / sum(V1))
+inertia_pca <- data.table::fread(paste0(temp_directory, "/raw_data_1kgenome.eigenval")) %>%
+  tibble::rownames_to_column("x") %>%
+  dplyr::mutate(y = V1 / sum(V1))
 ```
 
 The data from the **`r params[["cohort_name"]]`** cohort was pruned using the following cut-offs:
 
 * variants call rate > 90.00 %
 * MAF ≥ `r params[["maf_threshold"]]`
-* HWE > `r scientific(params[["hwe_pvalue"]])`
-* samples call rate > `r percent(params[["callrate_samples"]], accuracy = 0.01)`
-* heterozygosity rate within `r replace_number(params[["heterozygosity_treshold"]])` times SD from the mean heterozygosity rate
+* HWE > `r scales::scientific(params[["hwe_pvalue"]])`
+* samples call rate > `r scales::percent(params[["callrate_samples"]], accuracy = 0.01)`
+* heterozygosity rate within `r qdap::replace_number(params[["heterozygosity_treshold"]])` times SD from the mean heterozygosity rate
     
-The resulting "clean" dataset (*i.e.*, **`r comma(n_samples-n_samples_1kg)`** samples and **`r comma(n_good_snp)`** variants) was merged with the data from the publicly available *1,000 Genomes project* database, 
+The resulting "clean" dataset (*i.e.*, **`r scales::comma(n_samples-n_samples_1kg)`** samples and **`r scales::comma(n_good_snp)`** variants) was merged with the data from the publicly available *1,000 Genomes project* database, 
 and thinned down to only include not palindromic variants that were present in both dataset. 
 
 A principal component analysis (PCA) was performed on the merged dataset 
-(*i.e.*, **`r comma(n_samples)`** samples and **`r comma(n_good_snp_1kg)`** variants, 
-including **`r comma(n_samples_1kg)`** from the *1,000 Genomes project*)
+(*i.e.*, **`r scales::comma(n_samples)`** samples and **`r scales::comma(n_good_snp_1kg)`** variants, 
+including **`r scales::comma(n_samples_1kg)`** from the *1,000 Genomes project*)
 
 ```{r population-02, include = FALSE}
 centre_pca <- data_pca %>%
-  filter(Population != "raw_data") %>%
-  select(IID, Population, contains("centroid")) %>%
-  mutate_at(.vars = vars(IID, Population), .funs = as.character)
+  dplyr::filter(Population != "raw_data") %>%
+  dplyr::select(IID, Population, dplyr::contains("centroid")) %>%
+  dplyr::mutate_at(.vars = dplyr::vars(IID, Population), .funs = as.character)
 
-check_ethnicity <- fread(paste0(temp_directory, "/clean_data_tmp.fam")) %>%
-  select(FID = 1, IID = 2) %>%
-  mutate_all(as.character) %>%
-  left_join(
-    filter(data_pca, Population == "raw_data"),
+check_ethnicity <- data.table::fread(paste0(temp_directory, "/clean_data_tmp.fam")) %>%
+  dplyr::select(FID = 1, IID = 2) %>%
+  dplyr::mutate_all(as.character) %>%
+  dplyr::left_join(
+    dplyr::filter(data_pca, Population == "raw_data"),
     by = "IID"
   ) %>%
-  rowwise() %>%
-  mutate(
+  dplyr::rowwise() %>%
+  dplyr::mutate(
     ClosestPop = centre_pca[["Population"]][which.min(sqrt(
       (x - centre_pca[["x.centroid"]])^2 + (y - centre_pca[["y.centroid"]])^2
     ))]
   ) %>% 
-  ungroup()
+  dplyr::ungroup()
 
-pop1kg_description <- fread(params[["ref1kg_population"]]) %>%
-  select(POP = 1, SUPER_POP = 4, SUPER_POP_NAME = 5)
+pop1kg_description <- data.table::fread(params[["ref1kg_population"]]) %>%
+  dplyr::select(POP = 1, SUPER_POP = 4, SUPER_POP_NAME = 5)
 
 if (is.null(params[["population"]])) {
   not_target_population <- check_ethnicity[0, ]
 } else {
   not_target_population <- check_ethnicity %>%
-    filter(!ClosestPop %in% c(
+    dplyr::filter(!ClosestPop %in% c(
       params[["population"]],
       pop1kg_description %>%
-        filter(SUPER_POP %in% params[["population"]]) %>%
+        dplyr::filter(SUPER_POP %in% params[["population"]]) %>%
         .[["POP"]]
     ))
 }
 
-not_target_population <- mutate(not_target_population, QC = "Ethnicity")
+not_target_population <- dplyr::mutate(not_target_population, QC = "Ethnicity")
 ```
 
 ```{r population-03, fig.height = 4.7 * 1.5, fig.cap = paste("First factorial plane computed with a combined dataset", "involving samples from the 1,000 Genomes Project.", 'Samples in **A** were coloured by "super population" groups,', 'whereas samples in **B** were coloured by "population" groups', "and focused on the PCA area of the ", paste0("**", params[["cohort_name"]], "**"), "cohort.")}
 data_pca_plot <- data_pca %>%
-  left_join(
+  dplyr::left_join(
     y = check_ethnicity %>%
-      select(IID, ClosestPop) %>%
-      left_join(
+      dplyr::select(IID, ClosestPop) %>%
+      dplyr::left_join(
         y = recruit_centre %>%
-          rename(IID = Sample.Name) %>%
-          mutate(IID = as.character(IID)) %>%
-          select(IID, Cohort),
+          dplyr::rename(IID = Sample.Name) %>%
+          dplyr::mutate(IID = as.character(IID)) %>%
+          dplyr::select(IID, Cohort),
         by = "IID"
       ),
     by = "IID"
   ) %>%
-  mutate(
+  dplyr::mutate(
     Cohort = ifelse(is.na(Cohort), "1,000 Genomes", Cohort),
     ClosestPop = ifelse(is.na(ClosestPop), as.character(Population), as.character(ClosestPop))
   ) %>%
-  mutate(
+  dplyr::mutate(
     Population = ifelse(Population == "raw_data", Cohort, as.character(Population))
   ) %>% 
-  left_join(pop1kg_description, by = c("Population" = "POP")) %>% 
-  mutate(
+  dplyr::mutate(pop1kg_description, by = c("Population" = "POP")) %>% 
+  dplyr::mutate(
     SUPER_POP = ifelse(is.na(SUPER_POP), Population, SUPER_POP),
-    SUPER_POP = relevel(x = factor(SUPER_POP), ref = params[["cohort_name"]]),
+    SUPER_POP = stats::relevel(x = factor(SUPER_POP), ref = params[["cohort_name"]]),
     SUPER_POP = factor(SUPER_POP, levels = rev(levels(SUPER_POP))),
-    Population = relevel(x = factor(Population), ref = params[["cohort_name"]]),
+    Population = stats::relevel(x = factor(Population), ref = params[["cohort_name"]]),
     Population = factor(Population, levels = rev(levels(Population)))
   )
 
-get_lims <- filter(data_pca_plot, Population %in% params[["cohort_name"]])
+get_lims <- dplyr::filter(data_pca_plot, Population %in% params[["cohort_name"]])
 
-p_superpop <- ggplot(
+p_superpop <- ggplot2::ggplot(
   data = data_pca_plot, 
-  mapping = aes(x = x, y = y, colour = SUPER_POP, shape = SUPER_POP, fill = SUPER_POP)
+  mapping = ggplot2::aes(x = x, y = y, colour = SUPER_POP, shape = SUPER_POP, fill = SUPER_POP)
 ) +
-  geom_hline(yintercept = 0, linetype = 2) +
-  geom_vline(xintercept = 0, linetype = 2) +
-  geom_point(na.rm = TRUE) +
-  geom_mark_ellipse(
+  ggplot2::geom_hline(yintercept = 0, linetype = 2) +
+  ggplot2::geom_vline(xintercept = 0, linetype = 2) +
+  ggplot2::geom_point(na.rm = TRUE) +
+  ggforce::geom_mark_ellipse(
     alpha = 0.1, 
     con.cap = 0, 
     con.border = "all", 
-    expand = unit(2, "mm")
+    expand = ggplot2::unit(2, "mm")
   ) +
-  scale_colour_viridis_d(direction = -1) +
-  scale_fill_viridis_d(direction = -1) +
-  scale_shape_manual(values = rep(c(1:5), 3)) +
-  labs(
+  ggplot2::scale_colour_viridis_d(direction = -1) +
+  ggplot2::scale_fill_viridis_d(direction = -1) +
+  ggplot2::scale_shape_manual(values = rep(c(1:5), 3)) +
+  ggplot2::labs(
     x = "First Principal Component", 
     y = "Second Principal Component", 
     colour = NULL, # "Super Population", 
     shape = NULL, # "Super Population", 
     fill = NULL # "Super Population"
   ) +
-  facet_zoom(
+  ggforce::facet_zoom(
     xlim = range(get_lims[["x"]]), 
     ylim = range(get_lims[["y"]]),
     zoom.size = 0.5,
     horizontal = FALSE
   ) +
-  theme(
+  ggplot2::theme(
     legend.position = "bottom", 
     # legend.text = element_text(size = rel(0.5)),
-    legend.key.size = unit(0.5, units = "lines")
+    legend.key.size = ggplot2::unit(0.5, units = "lines")
   )
 
 data_pca_plot_closest <- data_pca_plot %>% 
-  filter(
+  dplyr::filter(
     Population %in% c(
-      filter(data_pca_plot, Population == params[["cohort_name"]])[["ClosestPop"]], 
+      dplyr::filter(data_pca_plot, Population == params[["cohort_name"]])[["ClosestPop"]], 
       params[["cohort_name"]]
     )
   ) %>% 
-  mutate_if(.predicate = is.factor, .funs = as.character) %>% 
-  mutate(
-    Population = relevel(x = factor(Population), ref = params[["cohort_name"]]),
+  dplyr::mutate_if(.predicate = is.factor, .funs = as.character) %>% 
+  dplyr::mutate(
+    Population = stats::relevel(x = factor(Population), ref = params[["cohort_name"]]),
     Population = factor(Population, levels = rev(levels(Population)))
   )
 
-p_pop <- ggplot(
+p_pop <- ggplot2::ggplot(
   data = data_pca_plot_closest,
-  mapping = aes(x = x, y = y, colour = Population, shape = Population)
+  mapping = ggplot2::aes(x = x, y = y, colour = Population, shape = Population)
 ) +
-  geom_hline(yintercept = 0, linetype = 2) +
-  geom_vline(xintercept = 0, linetype = 2) +
-  geom_point(na.rm = TRUE) +
-  geom_mark_ellipse(
-    mapping = aes(fill = Population, colour = Population),
+  ggplot2::geom_hline(yintercept = 0, linetype = 2) +
+  ggplot2::geom_vline(xintercept = 0, linetype = 2) +
+  ggplot2::geom_point(na.rm = TRUE) +
+  ggforce::geom_mark_ellipse(
+    mapping = ggplot2::aes(fill = Population, colour = Population),
     alpha = 0.1,
     con.cap = 0,
     con.border = "all",
-    expand = unit(2, "mm")
+    expand = ggplot2::unit(2, "mm")
   ) +
-  scale_colour_viridis_d(direction = -1) +
-  scale_fill_viridis_d(direction = -1) +
-  scale_shape_manual(values = rep(c(1:5), 3)) +
-  labs(
+  ggplot2::scale_colour_viridis_d(direction = -1) +
+  ggplot2::scale_fill_viridis_d(direction = -1) +
+  ggplot2::scale_shape_manual(values = rep(c(1:5), 3)) +
+  ggplot2::labs(
     x = "First Principal Component", 
     y = "Second Principal Component",
     colour = NULL, # "Population", 
     shape = NULL, # "Population", 
     fill = NULL # "Population"
   ) +
-  coord_cartesian(
+  ggplot2::coord_cartesian(
     xlim = range(data_pca_plot_closest[["x"]]), 
     ylim = range(data_pca_plot_closest[["y"]]), 
     expand = 0.05
   ) +
-  theme(
+  ggplot2::theme(
     legend.position = "bottom",
     # legend.text = element_text(size = rel(0.5)),
-    legend.key.size = unit(0.5, units = "lines")
+    legend.key.size = ggplot2::unit(0.5, units = "lines")
   )
 
 p_inertia <- inertia_pca %>%
-  mutate(x = as.numeric(x)) %>%
-  filter(x %in% 1:params[["pca_components"]]) %>%
-  ggplot(mapping = aes(x = x, y = y)) +
-  geom_bar(stat = "identity", fill = viridis_pal(begin = 0.5, end = 0.5)(1)) +
-  labs(y = "Inertia", x = "Principal Components", title = "PCA Scree Plot") +
-  scale_x_continuous(breaks = seq_len(params[["pca_components"]])) +
-  scale_y_continuous(
-    labels = percent_format(accuracy = 0.01), 
-    expand = expand_scale(mult = c(0, 0.05))
+  dplyr::mutate(x = as.numeric(x)) %>%
+  dplyr::filter(x %in% 1:params[["pca_components"]]) %>%
+  ggplot2::ggplot(mapping = ggplot2::aes(x = x, y = y)) +
+  ggplot2::geom_bar(stat = "identity", fill = scales::viridis_pal(begin = 0.5, end = 0.5)(1)) +
+  ggplot2::labs(y = "Inertia", x = "Principal Components", title = "PCA Scree Plot") +
+  ggplot2::scale_x_continuous(breaks = seq_len(params[["pca_components"]])) +
+  ggplot2::scale_y_continuous(
+    labels = scales::percent_format(accuracy = 0.01), 
+    expand = ggplot2::expand_scale(mult = c(0, 0.05))
   )
 
-ggarrange(
+ggpubr::ggarrange(
   p_superpop, 
-  ggarrange(
+  ggpubr::ggarrange(
     p_pop, 
     p_inertia, 
     nrow = 2, 
@@ -1788,13 +1789,13 @@ ggarrange(
 ```
 
 ```{r population-03-bis, fig.height = 4.7 * 1.5, fig.cap = paste("First factorial plane computed with a combined dataset", "involving samples from the 1,000 Genomes Project.", 'Samples were coloured by **A** "super population" and **B** "population" groups.')}
-ggarrange(
+ggpubr::ggarrange(
   p_superpop +
-    facet_grid(cols = vars(Cohort)) +
-    theme(legend.position = "top"),
+    ggplot2::facet_grid(cols = ggplot2::vars(Cohort)) +
+    ggplot2::theme(legend.position = "top"),
   p_pop +
-    facet_grid(cols = vars(Cohort)) +
-    theme(legend.position = "top"), 
+    ggplot2::facet_grid(cols = ggplot2::vars(Cohort)) +
+    ggplot2::theme(legend.position = "top"), 
   nrow = 2, 
   labels = LETTERS
 )
@@ -1802,32 +1803,32 @@ ggarrange(
 
 
 ```{r population-04, eval = !is.null(params[["population"]]) & nrow(not_target_population) > 0}
-samples_toexclude <- bind_rows(
+samples_toexclude <- dplyr::bind_rows(
   samples_toexclude, 
-  select(not_target_population, FID, IID, QC)
+  dplyr::select(not_target_population, FID, IID, QC)
 )
 
 pop_name <- pop1kg_description %>%
-  filter(SUPER_POP %in% params[["population"]]) %>%
-  distinct(SUPER_POP_NAME) %>%
+  dplyr::filter(SUPER_POP %in% params[["population"]]) %>%
+  dplyr::distinct(SUPER_POP_NAME) %>%
   .[["SUPER_POP_NAME"]]
 
 if (nrow(not_target_population) > 15) {
   cat(
-    "In total, ", comma(nrow(not_target_population)), " samples was(were) determined as ", 
+    "In total, ", scales::comma(nrow(not_target_population)), " samples was(were) determined as ", 
     "non-", pop_name, "(s) based on PCA.\n\n", 
     sep = ""
   )
 } else {
   not_target_population %>%
-    select(FID, IID, ClosestPop) %>%
-    rename("Closest Population" = ClosestPop) %>%
+    dplyr::select(FID, IID, ClosestPop) %>%
+    dplyr::rename("Closest Population" = ClosestPop) %>%
     pretty_kable(
       align = "c", 
       table.attr = "style='width:65%;'",
       caption = paste0(
         "Samples determined as non-", pop_name, "(s) based on PCA ", 
-        "(N = ", comma(nrow(not_target_population)), ")."
+        "(N = ", scales::comma(nrow(not_target_population)), ")."
       )
     )
 }
@@ -1836,9 +1837,9 @@ if (nrow(not_target_population) > 15) {
 ```{r population-05, include = FALSE}
 ## Only pop studied
 samples_toexclude %>%
-  filter(grepl("Sample_Call_Rate|Heterozygosity_Check$", QC)) %>%
-  distinct(FID, IID) %>%
-  write.table(
+  dplyr::filter(grepl("Sample_Call_Rate|Heterozygosity_Check$", QC)) %>%
+  dplyr::distinct(FID, IID) %>%
+  utils::write.table(
     file = paste0(temp_directory, "/samples_toexclude_pca_within.txt"),
     sep = "\t", 
     row.names = FALSE, 
@@ -1870,32 +1871,32 @@ system(command = paste(
   "--out", paste0(temp_directory, "/clean_data_tmp_within")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
-eigenvec_pca <- fread(paste0(temp_directory, "/clean_data_tmp_within.eigenvec")) %>%
+eigenvec_pca <- data.table::fread(paste0(temp_directory, "/clean_data_tmp_within.eigenvec")) %>%
   `colnames<-`(c("FID", "IID", paste0("PC", seq_len(params[["pca_components"]])))) %>%
-  mutate_at(.vars = c("FID", "IID"), .funs = as.character) %>% 
-  mutate(
-    extremes = abs(PC1) > params[["pca_threshold"]] * sd(PC1) | 
-      abs(PC2) > params[["pca_threshold"]] * sd(PC2)
+  dplyr::mutate_at(.vars = c("FID", "IID"), .funs = as.character) %>% 
+  dplyr::mutate(
+    extremes = abs(PC1) > params[["pca_threshold"]] * stats::sd(PC1) | 
+      abs(PC2) > params[["pca_threshold"]] * stats::sd(PC2)
   )
 
-samples_toexclude <- bind_rows(
+samples_toexclude <- dplyr::bind_rows(
   samples_toexclude,
   eigenvec_pca %>%
-    filter(extremes) %>%
-    select(FID, IID) %>%
-    mutate(QC = "Cohortwithin")
+    dplyr::filter(extremes) %>%
+    dplyr::select(FID, IID) %>%
+    dplyr::mutate(QC = "Cohortwithin")
 )
 
 recruit_centre_pca <- eigenvec_pca %>%
-  mutate(POP = "raw_data") %>%
-  rename(Extremes = extremes) %>%
-  left_join(
+  dplyr::mutate(POP = "raw_data") %>%
+  dplyr::rename(Extremes = extremes) %>%
+  dplyr::left_join(
     recruit_centre %>%
-      rename(IID = Sample.Name) %>%
-      select(IID, Cohort),
+      dplyr::rename(IID = Sample.Name) %>%
+      dplyr::select(IID, Cohort),
     by = "IID"
   ) %>%
-  mutate(Cohort = as.factor(Cohort))
+  dplyr::mutate(Cohort = as.factor(Cohort))
 ```
 
 
@@ -1905,83 +1906,83 @@ To assess the homogeneity of the **`r params[["cohort_name"]]`** cohort,
 a PCA was performed using only samples from the cohort.  
 Samples were labeled and flagged as being extreme when the distance from
 the **`r params[["cohort_name"]]`** cohort centroid was greater than
-`r replace_number(params[["pca_threshold"]])` times the standard deviation 
+`r qdap::replace_number(params[["pca_threshold"]])` times the standard deviation 
 of all distances (Figure \@ref(fig:population-06)).
 
-Samples labeled and flagged as extreme: **`r comma(sum(eigenvec_pca[["extremes"]]))`**
+Samples labeled and flagged as extreme: **`r scales::comma(sum(eigenvec_pca[["extremes"]]))`**
 
-```{r population-06, fig.cap = paste("Within-samples outliers detected as samples having at least one coordinate", "in the first factorial plane larger than", replace_number(params[["pca_threshold"]]), "times the standard deviation of the principal component.")}
-p_within <- ggplot(
-  data = mutate(
+```{r population-06, fig.cap = paste("Within-samples outliers detected as samples having at least one coordinate", "in the first factorial plane larger than", qdap::replace_number(params[["pca_threshold"]]), "times the standard deviation of the principal component.")}
+p_within <- ggplot2::ggplot(
+  data = dplyr::mutate(
     .data = recruit_centre_pca, 
     labs = ifelse(Extremes, IID, NA),
     Extremes = factor(Extremes)
   ),
-  mapping = aes(x = PC1, y = PC2)
+  mapping = ggplot2::aes(x = PC1, y = PC2)
 ) +
-  geom_hline(yintercept = 0, colour = "black", linetype = 2) +
-  geom_vline(xintercept = 0, colour = "black", linetype = 2) +
-  geom_point(
-    mapping = aes(colour = Extremes, shape = Extremes), 
+  ggplot2::geom_hline(yintercept = 0, colour = "black", linetype = 2) +
+  ggplot2::geom_vline(xintercept = 0, colour = "black", linetype = 2) +
+  ggplot2::geom_point(
+    mapping = ggplot2::aes(colour = Extremes, shape = Extremes), 
     na.rm = TRUE
   ) +
-  geom_label_repel(
-    mapping = aes(label = labs), 
-    min.segment.length = unit(0, 'lines'),
+  ggrepel::geom_label_repel(
+    mapping = ggplot2::aes(label = labs), 
+    min.segment.length = ggplot2::unit(0, 'lines'),
     force = 10, 
     alpha = 0.8, 
     size = 2.5,
     na.rm = TRUE
   ) +
-  scale_shape_manual(values = c(1, 3)) +
-  scale_colour_manual(values = c(viridis_pal(begin = 0.5, end = 0.5)(1), "firebrick2")) +
-  labs(
+  ggplot2::scale_shape_manual(values = c(1, 3)) +
+  ggplot2::scale_colour_manual(values = c(scales::viridis_pal(begin = 0.5, end = 0.5)(1), "firebrick2")) +
+  ggplot2::labs(
     x = "First Principal Component", 
     y = "Second Principal Component", 
     colour = "Cohort"
   ) +
-  theme(legend.position = "none")
+  ggplot2::theme(legend.position = "none")
 
 ## Compute components inertia
-inertia_within <- fread(paste0(temp_directory, "/clean_data_tmp_within.eigenval")) %>%
-  rownames_to_column("x") %>%
-  mutate(y = V1 / sum(V1)) %>%
-  select(x, y) %>% 
-  mutate(x = as.numeric(x))
+inertia_within <- data.table::fread(paste0(temp_directory, "/clean_data_tmp_within.eigenval")) %>%
+  tibble::rownames_to_column("x") %>%
+  dplyr::mutate(y = V1 / sum(V1)) %>%
+  dplyr::select(x, y) %>% 
+  dplyr::mutate(x = as.numeric(x))
 
-p_inertia_within <- ggplot(
-  data = filter(.data = inertia_within, x %in% 1:params[["pca_components"]]),
-  mapping = aes(x = x, y = y)
+p_inertia_within <- ggplot2::ggplot(
+  data = dplyr::filter(.data = inertia_within, x %in% 1:params[["pca_components"]]),
+  mapping = ggplot2::aes(x = x, y = y)
 ) +
-  geom_bar(stat = "identity", fill = viridis_pal(begin = 0.5, end = 0.5)(1)) +
-  labs(y = "Inertia", x = "Principal Components", title = "PCA Scree Plot") +
-  scale_x_continuous(breaks = seq_len(params[["pca_components"]])) +
-  scale_y_continuous(
-    labels = percent_format(accuracy = 0.01), 
-    expand = expand_scale(mult = c(0, 0.05))
+  ggplot2::geom_bar(stat = "identity", fill = scales::viridis_pal(begin = 0.5, end = 0.5)(1)) +
+  ggplot2::labs(y = "Inertia", x = "Principal Components", title = "PCA Scree Plot") +
+  ggplot2::scale_x_continuous(breaks = seq_len(params[["pca_components"]])) +
+  ggplot2::scale_y_continuous(
+    labels = scales::percent_format(accuracy = 0.01), 
+    expand = ggplot2::expand_scale(mult = c(0, 0.05))
   )
 
-ggarrange(p_within, p_inertia_within, ncol = 2, labels = LETTERS, widths = c(1.2, 1))
+ggpubr::ggarrange(p_within, p_inertia_within, ncol = 2, labels = LETTERS, widths = c(1.2, 1))
 
 pca_threshold <- which(abs(diff(inertia_within[["y"]])) < 0.01)
 ```
 
 <!--According to the eigenvalues, the first factorial plane explains 
-`r percent(sum(inertia_within[c(1, 2), "y"]), accuracy = 0.01)` of the variance among samples. 
-The principal components after `r replace_number(pca_threshold[1])` explain on average 
-`r percent(mean(inertia_within[pca_threshold[1]:nrow(inertia_within), "y"]), accuracy = 0.01)` 
-[`r paste(percent(range(inertia_within[pca_threshold[1]:nrow(inertia_within), "y"]), accuracy = 0.01), collapse = "; ")`] of 
-the variance (principal components up to `r comma(nrow(inertia_within))`).-->
+`r scales::percent(sum(inertia_within[c(1, 2), "y"]), accuracy = 0.01)` of the variance among samples. 
+The principal components after `r qdap::replace_number(pca_threshold[1])` explain on average 
+`r scales::percent(mean(inertia_within[pca_threshold[1]:nrow(inertia_within), "y"]), accuracy = 0.01)` 
+[`r paste(scales::percent(range(inertia_within[pca_threshold[1]:nrow(inertia_within), "y"]), accuracy = 0.01), collapse = "; ")`] of 
+the variance (principal components up to `r scales::comma(nrow(inertia_within))`).-->
 
 ```{r population-07, fig.cap = "PCA plot for components from two to five."}
-pca_planes <- combn(seq_len(min(params[["pca_components"]], 5))[-1], 2)
+pca_planes <- utils::combn(seq_len(min(params[["pca_components"]], 5))[-1], 2)
 
 pca_planes_list <- lapply(seq(ncol(pca_planes)), function(iComb) {
-  ggplot(data = recruit_centre_pca) +
-    geom_hline(yintercept = 0, colour = "black", linetype = 2) +
-    geom_vline(xintercept = 0, colour = "black", linetype = 2) +
-    geom_point(
-      aes(
+  ggplot2::ggplot(data = recruit_centre_pca) +
+    ggplot2::geom_hline(yintercept = 0, colour = "black", linetype = 2) +
+    ggplot2::geom_vline(xintercept = 0, colour = "black", linetype = 2) +
+    ggplot2::geom_point(
+      ggplot2::aes(
         x = .data[[paste0("PC", pca_planes[1, iComb])]], 
         y = .data[[paste0("PC", pca_planes[2, iComb])]], 
         colour = Extremes, 
@@ -1990,24 +1991,24 @@ pca_planes_list <- lapply(seq(ncol(pca_planes)), function(iComb) {
       shape = 1, 
       na.rm = TRUE
     ) +
-    scale_shape_manual(values = c(1, 3)) +
-    scale_colour_manual(values = c(viridis_pal(begin = 0.5, end = 0.5)(1), "firebrick2")) +
-    theme(legend.position = "none") +
-    labs(
+    ggplot2::scale_shape_manual(values = c(1, 3)) +
+    ggplot2::scale_colour_manual(values = c(scales::viridis_pal(begin = 0.5, end = 0.5)(1), "firebrick2")) +
+    ggplot2::theme(legend.position = "none") +
+    ggplot2::labs(
       x = paste0("PC", pca_planes[1, iComb]),
       y = paste0("PC", pca_planes[2, iComb])
     )
 })
 
-ggarrange(plotlist = pca_planes_list, nrow = 2, ncol = 3, labels = LETTERS)
+ggpubr::ggarrange(plotlist = pca_planes_list, nrow = 2, ncol = 3, labels = LETTERS)
 ```
 
 ```{r exclusion, include = FALSE}
 samples_toexclude_export <- samples_toexclude %>%
-  group_by(QC) %>% 
-  distinct(FID, IID, .keep_all = TRUE) %>% 
-  ungroup() %>% 
-  mutate(
+  dplyr::group_by(QC) %>% 
+  dplyr::distinct(FID, IID, .keep_all = TRUE) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(
     QC = factor(
       x = QC,
       levels = c(
@@ -2019,12 +2020,12 @@ samples_toexclude_export <- samples_toexclude %>%
     ),
     value = 1
   ) %>%
-  complete(nesting(FID, IID), QC, fill = list(value = 0)) %>% 
-  spread(QC, value) %>% 
-  mutate(
-    Status = if_else((Sample_Call_Rate + Heterozygosity_Check) > 0, "Exclude", "Check")
+  tidyr::complete(tidyr::nesting(FID, IID), QC, fill = list(value = 0)) %>% 
+  tidyr::spread(QC, value) %>% 
+  dplyr::mutate(
+    Status = dplyr::if_else((Sample_Call_Rate + Heterozygosity_Check) > 0, "Exclude", "Check")
   ) %>% 
-  rename(
+  dplyr::rename(
     `Call Rate` = Sample_Call_Rate,
     `Gender Discrepancy` = Gender_Discrepancy,
     `Gender Missing` = Gender_Missing,
@@ -2038,8 +2039,8 @@ samples_toexclude_export <- samples_toexclude %>%
     `Mendelian Error` = Sample_Mendel_Error
   )
 
-write.table(
-  x = filter(samples_toexclude_export, Status == "Exclude"),
+utils::write.table(
+  x = dplyr::filter(samples_toexclude_export, Status == "Exclude"),
   file = paste0(temp_directory, "/samples_excluded.txt"),
   sep = "\t", 
   col.names = TRUE, 
@@ -2063,7 +2064,7 @@ system(command = paste(
 # Variant-based QC
 
 After excluding sample-based QC failed samples, variant-based QC was performed on 
-**`r comma(nrow(fread(input = paste0(temp_directory, "/raw_data_good_samples.fam"), select = 1)))`** samples.  
+**`r scales::comma(nrow(data.table::fread(input = paste0(temp_directory, "/raw_data_good_samples.fam"), select = 1)))`** samples.  
 
 
 ## Variant call rate
@@ -2076,32 +2077,32 @@ system(command = paste(
   "--out ", paste0(temp_directory, "/raw_data_good_samples")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
-callrate_snps_raw <- fread(paste0(temp_directory, "/raw_data_good_samples.lmiss"))
+callrate_snps_raw <- data.table::fread(paste0(temp_directory, "/raw_data_good_samples.lmiss"))
 ```
 
 Proportion of missing genotypes or call rate per variant was estimated using the `--missing` command in PLINK.  
 
-```{r variant-call-rate-02, fig.cap = paste("Call rate per variant. The red line denotes the call rate", percent(params[["callrate_snps"]], accuracy = 0.01), "cut-off.", "Variants with a call rate greater than or equal to 99.9% are not shown.")}
-ggplot(
+```{r variant-call-rate-02, fig.cap = paste("Call rate per variant. The red line denotes the call rate", scales::percent(params[["callrate_snps"]], accuracy = 0.01), "cut-off.", "Variants with a call rate greater than or equal to 99.9% are not shown.")}
+ggplot2::ggplot(
   data = callrate_snps_raw %>%
-    arrange(F_MISS) %>%
-    replace_na(replace = list(F_MISS = 1)) %>% 
-    filter(F_MISS>=0.001),
-  mapping = aes(x = length(F_MISS):1, y = 1 - F_MISS)
+    dplyr::arrange(F_MISS) %>%
+    tidyr::replace_na(replace = list(F_MISS = 1)) %>% 
+    dplyr::filter(F_MISS>=0.001),
+  mapping = ggplot2::aes(x = length(F_MISS):1, y = 1 - F_MISS)
 ) +
-  geom_point(
-    colour = viridis_pal(begin = 0.5, end = 0.5)(1), 
+  ggplot2::geom_point(
+    colour = scales::viridis_pal(begin = 0.5, end = 0.5)(1), 
     shape = 1, 
     na.rm = TRUE
   ) +
-  geom_hline(
-    mapping = aes(yintercept = params[["callrate_snps"]]),
+  ggplot2::geom_hline(
+    mapping = ggplot2::aes(yintercept = params[["callrate_snps"]]),
     colour = "firebrick2", 
     linetype = 2
   ) +
-  scale_x_continuous(labels = comma_format(), trans = "log10") +
-  scale_y_continuous(labels = percent_format(accuracy = 0.01)) +
-  labs(x = "Variants", y = "Call rate")
+  ggplot2::scale_x_continuous(labels = scales::comma_format(), trans = "log10") +
+  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)) +
+  ggplot2::labs(x = "Variants", y = "Call rate")
 ```
 
 
@@ -2109,33 +2110,33 @@ ggplot(
 
 ```{r duplicated-snps, include = FALSE}
 callrate_snps <- callrate_snps_raw %>%
-  select(CHR, SNP, F_MISS) %>%
-  left_join(
-    y = fread(paste0(temp_directory, "/raw_data_good_samples.bim")) %>%
-      select(CHR = V1, SNP = V2, POS = V4),
+  dplyr::select(CHR, SNP, F_MISS) %>%
+  dplyr::left_join(
+    y = data.table::fread(paste0(temp_directory, "/raw_data_good_samples.bim")) %>%
+      dplyr::select(CHR = V1, SNP = V2, POS = V4),
     by = c("CHR" = "CHR", "SNP" = "SNP")
   ) %>%
-  arrange(CHR, POS) %>%
-  unite(CHRPOS, CHR, POS, sep = ":", remove = FALSE)
+  dplyr::arrange(CHR, POS) %>%
+  tidyr::unite(CHRPOS, CHR, POS, sep = ":", remove = FALSE)
 
 duplicated_snps <- callrate_snps %>%
-  filter(CHRPOS %in% CHRPOS[duplicated(CHRPOS)])
+  dplyr::filter(CHRPOS %in% CHRPOS[duplicated(CHRPOS)])
 
 if (nrow(duplicated_snps) == 0) {
   uniq_snps <- callrate_snps
 } else {
-  uniq_snps <- bind_rows(
+  uniq_snps <- dplyr::bind_rows(
     callrate_snps %>%
-      filter(!CHRPOS %in% duplicated_snps[["CHRPOS"]]),
+      dplyr::filter(!CHRPOS %in% duplicated_snps[["CHRPOS"]]),
     duplicated_snps %>% 
-      group_by(CHRPOS) %>% 
-      do(
-        filter(., F_MISS == min(F_MISS))
+      dplyr::group_by(CHRPOS) %>% 
+      dplyr::do(
+        dplyr::filter(., F_MISS == min(F_MISS))
       ) %>%
-      filter(n()==1) %>% 
-      ungroup()
+      dplyr::filter(dplyr::n()==1) %>% 
+      dplyr::ungroup()
   ) %>% 
-    mutate_at(.vars = c("CHR", "POS"), as.character)
+    dplyr::mutate_at(.vars = c("CHR", "POS"), as.character)
 }
 ```
 
@@ -2144,7 +2145,7 @@ several variants with two or more identical copies were found in the dataset.
 For each variant with multiple copies, 
 only the variant with the highest call rate (or arbitrarily if call rate was equal) was included.  
 
-In total, **`r comma(nrow(callrate_snps) - nrow(uniq_snps))`** variants 
+In total, **`r scales::comma(nrow(callrate_snps) - nrow(uniq_snps))`** variants 
 that possibly existed in multiple copies in the dataset (same chromosome and position) were removed.  
 
 
@@ -2175,26 +2176,26 @@ cat(
 if (!lmendel_file_check) {
   cat("Mendel error rates check was not performed due to missing informations.\n\n")
 } else {
-  mendel_error_snps <- fread(paste0(temp_directory, "/raw_data_good_samples.lmendel")) %>%
-    mutate(percentage = N / n()) %>%
-    arrange(percentage)
+  mendel_error_snps <- data.table::fread(paste0(temp_directory, "/raw_data_good_samples.lmendel")) %>%
+    dplyr::mutate(percentage = N / dplyr::n()) %>%
+    dplyr::arrange(percentage)
 }
 ```
 
-```{r lmendel-error-02, eval = params[["includes_relatives"]] & lmendel_file_check, fig.cap = paste("Mendel error rate per variant.", comma(sum(mendel_error_snps[["percentage"]] > params[["mendelian_snp"]])), "variants with more than", percent(x = params[["mendelian_snp"]], accuracy = 0.01), "Mendel errors rate were excluded.")}
-ggplot(
+```{r lmendel-error-02, eval = params[["includes_relatives"]] & lmendel_file_check, fig.cap = paste("Mendel error rate per variant.", scales::comma(sum(mendel_error_snps[["percentage"]] > params[["mendelian_snp"]])), "variants with more than", scales::percent(x = params[["mendelian_snp"]], accuracy = 0.01), "Mendel errors rate were excluded.")}
+ggplot2::ggplot(
   data = mendel_error_snps,
-  mapping = aes(x = seq_len(percent), y = percent)
+  mapping = ggplot2::aes(x = seq_len(percent), y = percent)
 ) +
-  geom_point(
-    colour = viridis_pal(begin = 0.5, end = 0.5)(1), 
+  ggplot2::geom_point(
+    colour = scales::viridis_pal(begin = 0.5, end = 0.5)(1), 
     shape = 1, 
     na.rm = TRUE
   ) +
-  geom_hline(yintercept = params[["mendelian_snp"]], colour = "firebrick2", linetype = 2) +
-  scale_x_continuous(labels = comma_format(), trans = "log10") +
-  scale_y_continuous(labels = percent_format(accuracy = 0.01)) +
-  labs(x = "Variants", y = "Mendel Error Rate")
+  ggplot2::geom_hline(yintercept = params[["mendelian_snp"]], colour = "firebrick2", linetype = 2) +
+  ggplot2::scale_x_continuous(labels = scales::comma_format(), trans = "log10") +
+  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)) +
+  ggplot2::labs(x = "Variants", y = "Mendel Error Rate")
 ```
 
 ```{r uniq-snps-list, include = FALSE}
@@ -2202,7 +2203,7 @@ if (lmendel_file_check) {
   cat(
     setdiff(
       uniq_snps[["SNP"]], 
-      filter(mendel_error_snps, percentage > params[["mendelian_snp"]])[["SNP"]]
+      dplyr::filter(mendel_error_snps, percentage > params[["mendelian_snp"]])[["SNP"]]
     ),
     sep = "\n", 
     file = paste0(temp_directory, "/uniq_snps_list.txt")
@@ -2232,19 +2233,19 @@ system(command = paste(
 ```
 
 ```{r maf-02, fig.cap = "Distribution of variants number per class of minor allele frequency (MAF)"}
-fread(paste0(temp_directory, "/raw_data_good_samples.frq")) %>%
-  mutate(
+data.table::fread(paste0(temp_directory, "/raw_data_good_samples.frq")) %>%
+  dplyr::mutate(
     maf_dist = cut(MAF, breaks = c(0, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5), include.lowest = TRUE)
   ) %>% 
-  drop_na(MAF) %>% 
-  ggplot(
-    mapping = aes(x = maf_dist)
+  tidyr::drop_na(MAF) %>% 
+  ggplot2::ggplot(
+    mapping = ggplot2::aes(x = maf_dist)
   ) +
-    geom_bar(fill = viridis_pal(begin = 0.5, end = 0.5)(1)) +
-    labs(x = "MAF", y = "Number of variants") +
-    scale_y_continuous(
-      labels = comma_format(),
-      expand = expand_scale(mult = c(0, 0.1))
+    ggplot2::geom_bar(fill = scales::viridis_pal(begin = 0.5, end = 0.5)(1)) +
+    ggplot2::labs(x = "MAF", y = "Number of variants") +
+    ggplot2::scale_y_continuous(
+      labels = scales::comma_format(),
+      expand = ggplot2::expand_scale(mult = c(0, 0.1))
     )
 ```
 
@@ -2259,31 +2260,31 @@ system(command = paste(
   "--out ", paste0(temp_directory, "/raw_data_good_samples")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
-hwe_complete <- fread(paste0(temp_directory, "/raw_data_good_samples.hwe")) %>%
-  drop_na(P)
+hwe_complete <- data.table::fread(paste0(temp_directory, "/raw_data_good_samples.hwe")) %>%
+  tidyr::drop_na(P)
 
 hwe_significant <- hwe_complete %>%
-  filter(P < params[["hwe_pvalue"]] * 10) %>%
-  arrange(P)
+  dplyr::filter(P < params[["hwe_pvalue"]] * 10) %>%
+  dplyr::arrange(P)
 ```
 
 Hardy-Weinberg equilibrium (HWE) p-value was computed using the `--hardy` command in PLINK.
 
-In total, **`r comma(sum(hwe_complete[, "P"] < params[["hwe_pvalue"]]))`** variants 
-had a HWE p-value below `r scientific(params[["hwe_pvalue"]])` and were excluded.  
+In total, **`r scales::comma(sum(hwe_complete[, "P"] < params[["hwe_pvalue"]]))`** variants 
+had a HWE p-value below `r scales::scientific(params[["hwe_pvalue"]])` and were excluded.  
 
-```{r hwe-02, fig.cap = paste0("The distribution of Hardy-Weinberg Equilibrium (HWE) p-values ", "for variants with HWE p-value < ", scientific(params[["hwe_pvalue"]] * 10), ". ", "The horizontal red line denotes the ", scientific(params[["hwe_pvalue"]]), " cut-off.")}
-ggplot(data = hwe_significant) +
-  geom_point(
-    mapping = aes(x = 1:length(P), y = P),
-    colour = viridis_pal(begin = 0.5, end = 0.5)(1), 
+```{r hwe-02, fig.cap = paste0("The distribution of Hardy-Weinberg Equilibrium (HWE) p-values ", "for variants with HWE p-value < ", scales::scientific(params[["hwe_pvalue"]] * 10), ". ", "The horizontal red line denotes the ", scales::scientific(params[["hwe_pvalue"]]), " cut-off.")}
+ggplot2::ggplot(data = hwe_significant) +
+  ggplot2::geom_point(
+    mapping = ggplot2::aes(x = 1:length(P), y = P),
+    colour = scales::viridis_pal(begin = 0.5, end = 0.5)(1), 
     shape = 1, 
     na.rm = TRUE
   ) +
-  geom_hline(yintercept = params[["hwe_pvalue"]], colour = "firebrick2", linetype = 2) +
-  scale_x_continuous(labels = comma_format(), trans = "log10") +
-  scale_y_continuous(trans = pval_trans()) +
-  labs(x = "Variants", y = "Hardy-Weinberg Equilibrium P-value")
+  ggplot2::geom_hline(yintercept = params[["hwe_pvalue"]], colour = "firebrick2", linetype = 2) +
+  ggplot2::scale_x_continuous(labels = scales::comma_format(), trans = "log10") +
+  ggplot2::scale_y_continuous(trans = pval_trans()) +
+  ggplot2::labs(x = "Variants", y = "Hardy-Weinberg Equilibrium P-value")
 ```
 
 ```{r file-management, include = FALSE}
@@ -2378,7 +2379,7 @@ system(command = paste(
   "--out", paste0(params[["output_directory"]], "/plink_qc/", params[["cohort_name"]], "_QC")
 ))
 
-write.table(
+utils::write.table(
   x = structure(
     list(
       V1 = 1:26,
@@ -2439,67 +2440,67 @@ system(command = paste(
 # Final QC overview (with all filters)
 
 ```{r qc-summary, include = FALSE}
-initial_snps_number <- nrow(fread(
+initial_snps_number <- nrow(data.table::fread(
   input = paste0(params[["input_directory"]], ".bim"), 
   select = 1
 ))
 
-final_snps_number <- nrow(fread(
+final_snps_number <- nrow(data.table::fread(
   input = paste0(params[["output_directory"]], "/plink_qc/", params[["cohort_name"]], "_QC.bim"), 
   select = 1
 ))
 
-initial_samples_number <- nrow(fread(
+initial_samples_number <- nrow(data.table::fread(
   input = paste0(params[["input_directory"]], ".fam"),
   select = 1
 ))
 
-final_samples_number <- nrow(fread(
+final_samples_number <- nrow(data.table::fread(
   input = paste0(params[["output_directory"]], "/plink_qc/", params[["cohort_name"]], "_QC.fam"), 
   select = 1
 ))
 ```
 
 * Samples previously characterised in Section [Sample-based QC](#sample-qc) (Table \@ref(tab:qc-summary-table)):
-    + **`r comma(n_distinct(filter(samples_toexclude_export, Status=="Exclude")[["IID"]]))`**
+    + **`r scales::comma(dplyr::n_distinct(dplyr::filter(samples_toexclude_export, Status=="Exclude")[["IID"]]))`**
         samples excluded due to failures in the call rate and/or the heterozygosity checks.
-    + **`r comma(n_distinct(filter(samples_toexclude_export, Status=="Check")[["IID"]]))`**
+    + **`r scales::comma(dplyr::n_distinct(dplyr::filter(samples_toexclude_export, Status=="Check")[["IID"]]))`**
         samples flagged. 
         Those samples need to be checked in order to determine whether or not they have to be excluded.
-* Variant call rate at `r percent(params[["callrate_snps"]], accuracy = 0.01)`.
+* Variant call rate at `r scales::percent(params[["callrate_snps"]], accuracy = 0.01)`.
 * Duplicated variants based on chromosome and position
-* Hardy-Weinberg Equilibrium p-value at `r scientific(params[["hwe_pvalue"]])`
+* Hardy-Weinberg Equilibrium p-value at `r scales::scientific(params[["hwe_pvalue"]])`
 `r if (params[["includes_relatives"]] & lmendel_file_check) cat("* Per-variant Mendelian error rate (when applicable) at", params[["mendelian_snp"]])`
 
-The initial dataset included **`r comma(initial_samples_number)`** samples 
-and **`r comma(initial_snps_number)`** variants.  
-The final dataset includes **`r comma(final_samples_number)`** samples 
-and **`r comma(final_snps_number)`** variants.
+The initial dataset included **`r scales::comma(initial_samples_number)`** samples 
+and **`r scales::comma(initial_snps_number)`** variants.  
+The final dataset includes **`r scales::comma(final_samples_number)`** samples 
+and **`r scales::comma(final_snps_number)`** variants.
 
 ```{r qc-summary-table}
 recruit_centre %>%
-  select(Sample.Name, Cohort, Gender) %>%
-  right_join(
-    y = select(samples_toexclude_export, IID, Status), 
+  dplyr::select(Sample.Name, Cohort, Gender) %>%
+  dplyr::right_join(
+    y = dplyr::select(samples_toexclude_export, IID, Status), 
     by = c("Sample.Name" = "IID")
   ) %>% 
-  group_by(Cohort, Status, .drop = FALSE) %>%
-  count() %>%
-  spread(key = Status, value = n) %>% 
-  left_join(
-    y = select(recruit_centre_table, Cohort, Total), 
+  dplyr::group_by(Cohort, Status, .drop = FALSE) %>%
+  dplyr::count() %>%
+  tidyr::spread(key = Status, value = n) %>% 
+  dplyr::left_join(
+    y = dplyr::select(recruit_centre_table, Cohort, Total), 
     by = "Cohort"
   ) %>%
-  rowwise() %>% 
-  mutate(
-    ExcludeorCheck_pct = percent((Exclude + Check) / Total, accuracy = 0.01),
+  dplyr::rowwise() %>% 
+  dplyr::mutate(
+    ExcludeorCheck_pct = scales::percent((Exclude + Check) / Total, accuracy = 0.01),
     ExcludeorCheck = paste0((Exclude + Check), " / ", Total, " (", ExcludeorCheck_pct, ")") %>% gsub("NaN", "0", .),
-    Check_pct = percent(Check / Total, accuracy = 0.01), 
-    Exclude_pct = percent(Exclude / Total, accuracy = 0.01),
+    Check_pct = scales::percent(Check / Total, accuracy = 0.01), 
+    Exclude_pct = scales::percent(Exclude / Total, accuracy = 0.01),
     Check = paste0(Check, " / ", Total, " (", Check_pct, ")") %>% gsub("NaN", "0", .),
     Exclude = paste0(Exclude, " / ", Total, " (", Exclude_pct, ")") %>% gsub("NaN", "0", .)
   ) %>%
-  select(
+  dplyr::select(
     Cohort, 
     Excluded = Exclude, 
     Flagged = Check, 
@@ -2516,27 +2517,27 @@ recruit_centre %>%
 output_xlsx <- list()
 
 output_xlsx[["exclude_flag"]] <- samples_toexclude_export %>%
-  left_join(
+  dplyr::left_join(
     y = recruit_centre %>%
-      select(Sample.Name, Cohort, Gender) %>%
-      mutate(Sample.Name = as.character(Sample.Name)),
+      dplyr::select(Sample.Name, Cohort, Gender) %>%
+      dplyr::mutate(Sample.Name = as.character(Sample.Name)),
     by = c("IID" = "Sample.Name")
   ) %>%
-  rename(
+  dplyr::rename(
     "Ethnicity" = "PCA Outliers",
     "Cohort PCA outliers" = "Within Cohort PCA outliers"
   ) %>%
-  select(FID, IID, Gender, Cohort, Status, everything()) %>% 
-  arrange(desc(!!as.symbol(colnames(.)[-c(1:4)])))
+  dplyr::select(FID, IID, Gender, Cohort, Status, dplyr::everything()) %>% 
+  dplyr::arrange(dplyr::desc(!!as.symbol(colnames(.)[-c(1:4)])))
 
 if (exists("related_samples")) {
   output_xlsx[["relatedness"]] <- related_samples %>%
-    left_join(
-      y = select(recruit_centre, Sample.Name, Cohort),
+    dplyr::left_join(
+      y = dplyr::select(recruit_centre, Sample.Name, Cohort),
       by = c("IID1" = "Sample.Name")
     ) %>%
-    left_join(
-      y = select(recruit_centre, Sample.Name, Cohort),
+    dplyr::left_join(
+      y = dplyr::select(recruit_centre, Sample.Name, Cohort),
       by = c("IID2" = "Sample.Name"),
       suffix = c("1", "2")
     )
@@ -2544,17 +2545,17 @@ if (exists("related_samples")) {
 
 if (exists("mendel_errors_samples")) {
   output_xlsx[["Sample_Mendel_Error_Rate"]] <- mendel_errors_samples %>% 
-    mutate(
-      `Sample Mendel error rate` = percent(percent, accuracy = 0.01)
+    dplyr::mutate(
+      `Sample Mendel error rate` = scales::percent(percent, accuracy = 0.01)
     ) %>% 
-    select(-percent)
+    dplyr::select(-percent)
 }
 
 if (nrow(not_target_population) != 0) {
-  output_xlsx[["ethnicity"]] <- select(not_target_population, FID, IID, ClosestPop)
+  output_xlsx[["ethnicity"]] <- dplyr::select(not_target_population, FID, IID, ClosestPop)
 }
 
-write_xlsx(output_xlsx, path = paste0(params[["output_directory"]], "/QC_exclusion.xlsx"))
+writexl::write_xlsx(output_xlsx, path = paste0(params[["output_directory"]], "/QC_exclusion.xlsx"))
 ```
 
 
@@ -2600,5 +2601,5 @@ check_bim_script_ver <- readLines(params[["check_bim_script"]], warn = FALSE) %>
 
 ```{r session-info, results = "markup"}
 options("width" = 110)
-session_info()
+sessioninfo::session_info()
 ```
