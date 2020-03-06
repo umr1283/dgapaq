@@ -81,7 +81,7 @@
 #' @importFrom readxl read_xlsx
 #' @importFrom qdap replace_number
 #' @importFrom ggrepel geom_label_repel
-#' @importFrom stats sd na.omit aggregate quantile
+#' @importFrom stats sd na.omit aggregate quantile relevel
 #' @importFrom ggpubr ggarrange
 #' @importFrom parallel mclapply
 #' @importFrom tibble rownames_to_column

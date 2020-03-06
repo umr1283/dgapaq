@@ -38,18 +38,20 @@ output:
 options(stringsAsFactors = FALSE)
 
 ### Load packages and functions
-library("bookdown")
-library("data.table")
-library("dplyr")
-library("forcats")
-library("fs")
-library("ggplot2")
-library("kableExtra")
-library("rmarkdown")
-library("scales")
-library("sessioninfo")
-library("tidyr")
-library("utils")
+# library("bookdown")
+# library("data.table")
+# library("dplyr")
+# library("forcats")
+# library("fs")
+# library("ggplot2")
+# library("kableExtra")
+# library("knitr")
+# library("rmarkdown")
+# library("scales")
+# library("sessioninfo")
+# library("tidyr")
+# library("utils")
+`%>%` <- magrittr::`%>%`
 
 pretty_kable <- function(
   data, 
@@ -60,13 +62,13 @@ pretty_kable <- function(
   format = "html",
   ...
 ) {
-  output <- kable(
+  output <- knitr::kable(
     x = data, 
     format.args = format_args, 
     col.names = col.names,
     ...
   )
-  kable_styling(
+  kableExtra::kable_styling(
     kable_input = output,
     bootstrap_options = c("striped", "hover", "condensed", "responsive"),
     full_width = full_width,
@@ -83,7 +85,7 @@ dir.create(
   showWarnings = FALSE, 
   mode = "0777"
 )
-opts_chunk$set(
+knitr::opts_chunk$set(
   results = "asis",
   size = "small",
   include = TRUE,
@@ -103,7 +105,7 @@ opts_chunk$set(
 
 
 ### Define theme
-theme_set(theme_light(base_size = params[["gg_fontsize"]]))
+ggplot2::theme_set(ggplot2::theme_light(base_size = params[["gg_fontsize"]]))
 ```
 
 # Method
@@ -184,7 +186,7 @@ list_vcf <- list.files(path = params[["input_directory"]], pattern = "vcf.gz$", 
 all_chrosomoses <- lapply(
   X = list_vcf,
   FUN = function(ichr) {
-    fread(
+    data.table::fread(
       file = ichr, 
       header = TRUE, 
       check.names = FALSE,
@@ -193,16 +195,16 @@ all_chrosomoses <- lapply(
       colClasses = c("#CHROM" = "character", "POS" = "integer", "INFO" = "character"),
       showProgress = FALSE
     ) %>% 
-      rename(CHR = `#CHROM`) %>% 
-      separate(col = "INFO", into = c("RefPanelAF", "AC", "AN", "INFO"), sep = ";") %>% 
-      mutate_at(.vars = vars(c("RefPanelAF", "AC", "AN", "INFO")), .funs = ~as.numeric(gsub(".*=", "", .x))) %>% 
-      mutate(
+      dplyr::rename(CHR = `#CHROM`) %>% 
+      tidyr::separate(col = "INFO", into = c("RefPanelAF", "AC", "AN", "INFO"), sep = ";") %>% 
+      dplyr::mutate_at(.vars = dplyr::vars(c("RefPanelAF", "AC", "AN", "INFO")), .funs = ~as.numeric(gsub(".*=", "", .x))) %>% 
+      dplyr::mutate(
         # CHR = as.character(CHR),
         AF = AC / AN,
         bin_af = cut(AF, breaks = seq(0, 1, 0.1), include.lowest = TRUE),
         bin_info = cut(INFO, breaks = seq(0, 1, 0.1), include.lowest = TRUE),
-        bin_af = fct_explicit_na(bin_af),
-        bin_info = fct_explicit_na(bin_info)
+        bin_af = forcats::fct_explicit_na(bin_af),
+        bin_info = forcats::fct_explicit_na(bin_info)
       )
   }
 )
@@ -215,15 +217,15 @@ names(all_chrosomoses) <- gsub("^([^.]+)\\..*", "\\1", basename(list_vcf))
 
 ```{r genomewide-af}
 all_chrosomoses %>% 
-  bind_rows() %>% 
-  count(bin_af) %>% 
-  mutate(p = n / sum(n)) %>% 
-  add_row(bin_af = "Total", n = sum(.$n), p = 1) %>%
-  mutate(
-    n = comma(n),
-    p = percent(p, accuracy = 0.0001)
+  dplyr::bind_rows() %>% 
+  dplyr::count(bin_af) %>% 
+  dplyr::mutate(p = n / sum(n)) %>% 
+  dplyr::add_row(bin_af = "Total", n = sum(.$n), p = 1) %>%
+  dplyr::mutate(
+    n = scales::comma(n),
+    p = scales::percent(p, accuracy = 0.0001)
   ) %>% 
-  rename(
+  dplyr::rename(
     `Alternate Allele Frequency` = bin_af,
     Count = n,
     `%` = p
@@ -238,15 +240,15 @@ all_chrosomoses %>%
 
 ```{r genomewide-info}
 all_chrosomoses %>% 
-  bind_rows() %>% 
-  count(bin_info) %>% 
-  mutate(p = n / sum(n)) %>% 
-  add_row(bin_info = "Total", n = sum(.$n), p = 1) %>%
-  mutate(
-    n = comma(n),
-    p = percent(p, accuracy = 0.0001)
+  dplyr::bind_rows() %>% 
+  dplyr::count(bin_info) %>% 
+  dplyr::mutate(p = n / sum(n)) %>% 
+  dplyr::add_row(bin_info = "Total", n = sum(.$n), p = 1) %>%
+  dplyr::mutate(
+    n = scales::comma(n),
+    p = scales::percent(p, accuracy = 0.0001)
   ) %>% 
-  rename(
+  dplyr::rename(
     `INFO score` = bin_info,
     Count = n,
     `%` = p
@@ -265,28 +267,28 @@ for (ichr in c(1:22, "X")) {
   tmp <- all_chrosomoses[[ichr]]
   
   cat("#### Alternate allele frequency in cohort vs HRC\n\n")
-  p1 <- ggplot(
+  p1 <- ggplot2::ggplot(
     data = tmp, 
-    mapping = aes(x = RefPanelAF, y = AF, colour = INFO > 0.8)
+    mapping = ggplot2::aes(x = RefPanelAF, y = AF, colour = INFO > 0.8)
   ) +
-    geom_point(size = 0.1, na.rm = TRUE) +
-    scale_colour_viridis_d(begin = 0.2, end = 0.8, na.value = "firebrick2") +
-    labs(x = "HRC alternate allele frequency", y = "Alternate allele frequency") +
-    scale_x_continuous(labels = percent_format(accuracy = 0.01), expand = c(0, 0)) +
-    scale_y_continuous(labels = percent_format(accuracy = 0.01), expand = c(0, 0))
+    ggplot2::geom_point(size = 0.1, na.rm = TRUE) +
+    ggplot2::scale_colour_viridis_d(begin = 0.2, end = 0.8, na.value = "firebrick2") +
+    ggplot2::labs(x = "HRC alternate allele frequency", y = "Alternate allele frequency") +
+    ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 0.01), expand = c(0, 0)) +
+    ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.01), expand = c(0, 0))
   print(p1)
   cat("\n\n")
   
   cat("#### Variants binned by alternate allele frequency\n\n")
   tmp %>% 
-    count(bin_af) %>% 
-    mutate(p = n / sum(n)) %>% 
-    add_row(bin_af = "Total", n = sum(.$n), p = 1) %>%
-    mutate(
-      n = comma(n),
-      p = percent(p, accuracy = 0.0001)
+    dplyr::count(bin_af) %>% 
+    dplyr::mutate(p = n / sum(n)) %>% 
+    dplyr::add_row(bin_af = "Total", n = sum(.$n), p = 1) %>%
+    dplyr::mutate(
+      n = scales::comma(n),
+      p = scales::percent(p, accuracy = 0.0001)
     ) %>% 
-    rename(
+    dplyr::rename(
       `Alternate Allele Frequency` = bin_af,
       Count = n,
       `%` = p
@@ -296,33 +298,33 @@ for (ichr in c(1:22, "X")) {
       table.attr = "style='width:65%;'"
     )
   cat("\n\n")
-  p2 <- ggplot(
+  p2 <- ggplot2::ggplot(
     data = tmp %>% 
-      count(bin_af) %>% 
-      mutate(p = percent(n / sum(n), accuracy = 0.01)), 
-    mapping = aes(x = bin_af, y = n, label = p)
+      dplyr::count(bin_af) %>% 
+      dplyr::mutate(p = scales::percent(n / sum(n), accuracy = 0.01)), 
+    mapping = ggplot2::aes(x = bin_af, y = n, label = p)
   ) +
-    geom_bar(fill = viridis_pal(begin = 0.5, end = 0.5)(1), stat = "identity") +
-    geom_text(vjust = -0.1) +
-    scale_y_continuous(
-      labels = comma, 
-      expand = expand_scale(mult = c(0, 0.10))
+    ggplot2::geom_bar(fill = scales::viridis_pal(begin = 0.5, end = 0.5)(1), stat = "identity") +
+    ggplot2::geom_text(vjust = -0.1) +
+    ggplot2::scale_y_continuous(
+      labels = scales::comma, 
+      expand = ggplot2::expand_scale(mult = c(0, 0.10))
     ) +
-    labs(x = "Alternate allele frequency", y = "Count") +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    ggplot2::labs(x = "Alternate allele frequency", y = "Count") +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
   print(p2)
   cat("\n\n")
   
   cat("#### Variants binned by imputation INFO score\n\n")
   tmp %>% 
-    count(bin_info) %>% 
-    mutate(p = n / sum(n)) %>% 
-    add_row(bin_info = "Total", n = sum(.$n), p = 1) %>%
-    mutate(
-      n = comma(n),
-      p = percent(p, accuracy = 0.0001)
+    dplyr::count(bin_info) %>% 
+    dplyr::mutate(p = n / sum(n)) %>% 
+    dplyr::add_row(bin_info = "Total", n = sum(.$n), p = 1) %>%
+    dplyr::mutate(
+      n = scales::comma(n),
+      p = scales::percent(p, accuracy = 0.0001)
     ) %>% 
-    rename(
+    dplyr::rename(
       `INFO score` = bin_info,
       Count = n,
       `%` = p
@@ -332,49 +334,49 @@ for (ichr in c(1:22, "X")) {
       table.attr = "style='width:65%;'"
     )
   cat("\n\n")
-  p3 <- ggplot(
+  p3 <- ggplot2::ggplot(
     data = tmp %>% 
-      count(bin_info) %>% 
-      mutate(p = percent(n / sum(n), accuracy = 0.01)), 
-    mapping = aes(x = bin_info, y = n, label = p)
+      dplyr::count(bin_info) %>% 
+      dplyr::mutate(p = scales::percent(n / sum(n), accuracy = 0.01)), 
+    mapping = ggplot2::aes(x = bin_info, y = n, label = p)
   ) +
-    geom_bar(fill = viridis_pal(begin = 0.5, end = 0.5)(1), stat = "identity") +
-    geom_text(vjust = -0.1) +
-    scale_y_continuous(
-      labels = comma, 
-      expand = expand_scale(mult = c(0, 0.10))
+    ggplot2::geom_bar(fill = scales::viridis_pal(begin = 0.5, end = 0.5)(1), stat = "identity") +
+    ggplot2::geom_text(vjust = -0.1) +
+    ggplot2::scale_y_continuous(
+      labels = scales::comma, 
+      expand = ggplot2::expand_scale(mult = c(0, 0.10))
     ) +
-    labs(x = "INFO score", y = "Count") +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    ggplot2::labs(x = "INFO score", y = "Count") +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
   print(p3)
   cat("\n\n")
   
   cat("#### Manhattan plot of the INFO score across the chromosome\n\n")
-  p4 <- ggplot(
-    data = drop_na(tmp, INFO), 
-    mapping = aes(x = POS / 1e6, y = INFO, colour = INFO > 0.8)
+  p4 <- ggplot2::ggplot(
+    data = tidyr::drop_na(tmp, INFO), 
+    mapping = ggplot2::aes(x = POS / 1e6, y = INFO, colour = INFO > 0.8)
   ) +
-    geom_point(size = 0.1, na.rm = TRUE) +
-    scale_colour_viridis_d(begin = 0.2, end = 0.8) +
-    scale_x_continuous(labels = comma) +
-    scale_y_continuous(expand = c(0, 0)) +
-    labs(x = "Position (Mb)", y = "INFO score")
+    ggplot2::geom_point(size = 0.1, na.rm = TRUE) +
+    ggplot2::scale_colour_viridis_d(begin = 0.2, end = 0.8) +
+    ggplot2::scale_x_continuous(labels = scales::comma) +
+    ggplot2::scale_y_continuous(expand = c(0, 0)) +
+    ggplot2::labs(x = "Position (Mb)", y = "INFO score")
   print(p4)
   cat("\n\n")
   
   cat("#### Check for consistent ascending chromosome/position ordering\n\n")
-  p5 <- ggplot(
-    data = drop_na(tmp, INFO),
-    mapping = aes(x = POS / 1e6, y = seq_along(POS) / 1e3)
+  p5 <- ggplot2::ggplot(
+    data = tidyr::drop_na(tmp, INFO),
+    mapping = ggplot2::aes(x = POS / 1e6, y = seq_along(POS) / 1e3)
   ) +
-    geom_point(
+    ggplot2::geom_point(
       size = 0.1, 
-      colour = viridis_pal(begin = 0.5, end = 0.5)(1), 
+      colour = scales::viridis_pal(begin = 0.5, end = 0.5)(1), 
       na.rm = TRUE
     ) +
-    scale_x_continuous(labels = comma) +
-    scale_y_continuous(labels = comma) +
-    labs(x = "Position on chromosome (Mb)", y = "Line number (x 1,000)")
+    ggplot2::scale_x_continuous(labels = scales::comma) +
+    ggplot2::scale_y_continuous(labels = scales::comma) +
+    ggplot2::labs(x = "Position on chromosome (Mb)", y = "Line number (x 1,000)")
   print(p5)
   cat("\n\n")
 }
@@ -385,5 +387,5 @@ for (ichr in c(1:22, "X")) {
 
 ```{r session-info, results = "markup"}
 options("width" = 110)
-session_info()
+sessioninfo::session_info()
 ```
