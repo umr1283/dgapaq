@@ -34,7 +34,7 @@
 #' @importFrom utils capture.output
 #' @importFrom fs dir_tree
 #' @importFrom knitr kable opts_chunk
-#' @importFrom kableExtra kable_styling
+#' @importFrom gt gt opt_row_striping tab_header fmt_number
 #' @importFrom data.table fread
 #' @importFrom forcats fct_explicit_na
 #' @importFrom scales comma percent viridis_pal

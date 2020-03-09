@@ -74,7 +74,7 @@
 #' @importFrom bookdown html_document2
 #' @importFrom knitr opts_chunk kable
 #' @importFrom Hmisc capitalize
-#' @importFrom kableExtra kable_styling row_spec add_header_above
+#' @importFrom gt gt opt_row_striping tab_header fmt_number
 #' @importFrom scales trans_new scientific scientific_format comma comma_format percent percent_format viridis_pal
 #' @importFrom utils read.table write.table combn
 #' @importFrom data.table fread

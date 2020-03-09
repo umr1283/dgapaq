@@ -1,6 +1,6 @@
 Package: dgapaq
 Title: DNA Genotyping Arrays Processing And Quality-Control
-Version: 0.1.0
+Version: 0.1.0.9000
 Authors@R: 
     c(person(given = "Mickaël",
              family = "Canouil",
@@ -30,8 +30,8 @@ Imports:
     ggpubr (>= 0.2.5),
     ggrepel (>= 0.8.1),
     grid,
+    gt (>= 0.1.0),
     Hmisc (>= 4.3.1),
-    kableExtra (>= 1.1.0),
     knitr (>= 1.28),
     magrittr (>= 1.5),
     parallel,
@@ -48,6 +48,8 @@ Imports:
     writexl (>= 1.2)
 Suggests:
     roxygen2 (>= 7.0.2)
+Remotes:
+    github::rstudio/gt
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)

@@ -1,3 +1,9 @@
+# dgapaq (development version)
+
+## Minor improvements and fixes
+
+* Use `gt` for tables.
+
 # dgapaq 0.1.0
 
 ## New features
