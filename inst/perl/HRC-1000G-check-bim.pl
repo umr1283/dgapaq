@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 # Script to check plink .bim files against HRC/1000G for strand, id names, positions, alleles, ref/alt assignment
-# W.Rayner 2015 
+# W.Rayner 2015 - 2019
 # wrayner@well.ox.ac.uk
 #
 # Version 4.2
@@ -35,6 +35,21 @@
 #  - Added chrX support from r1.1 of HRC
 #  -v4.2.5
 #  - Updated, adding Chr X to plink command file
+#  -v4.2.6
+#  - Added gzip reading for reference panels
+#  - Added a check of variant #'s between freq and bim file
+#  -v4.2.7
+#  - Updated code for determining window width to allow better compatibility with Windows
+#  -v4.2.8
+#  - Added -c flag to allow checking of a subset or individual chromosomes
+#  -v4.2.9
+#  - Added ability to read .bim files with 1,2,3,4 allele coding
+#  - Fixed bug which would give a null entry if no differences were found between the reference and bim file
+#  -v4.2.10
+#  - Added checking to ensure bim and frq filenames and paths are valid
+#  -v4.2.11
+#  - Changed the commands to update and retain the Ref/Alt alleles in the plink conversion commands
+#
 #
 # NOTES:
 # Script is based on release 1 of the HRC, filename HRC.r1.GRCh37.autosomes.mac5.sites.tab, can be overridden with the -r flag
@@ -50,6 +65,8 @@ use strict;
 use warnings;
 use File::Basename;
 use Getopt::Long;
+use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
+use Term::ReadKey   qw/ GetTerminalSize /;
 
 $| = 1;
 
@@ -59,10 +76,10 @@ my $mid = int($columns/2+0.5);
 print "\n\n";
 printf("%*s", $mid+24, "Script to check plink .bim files against HRC/1000G for\n");
 printf("%*s", $mid+25, "strand, id names, positions, alleles, ref/alt assignment\n");
-printf("%*s", $mid+5, "William Rayner 2015\n");
+printf("%*s", $mid+5, "William Rayner 2015-2018\n");
 printf("%*s", $mid+6, "wrayner\@well.ox.ac.uk\n");
 print "\n";
-printf("%*s", $mid+5, "Version 4.2.3\n\n\n");
+printf("%*s", $mid+5, "Version 4.2.9\n\n\n");
 
 # default input filenames (HRC or 1000G file name)
 my $hrc_file = 'HRC.r1.GRCh37.autosomes.mac5.sites.tab';
@@ -93,8 +110,8 @@ my $total = 0;
 my $altchr = 0;
 my %AltAf;
 my %af;
-my $palin;
-my $allelediff;
+my $palin = 0;
+my $allelediff = 0;
 my %seen;
 my $duplicate = 0;
 my @alleles;
@@ -105,6 +122,7 @@ my $indelflag = 0;
 my $plotflag = 0;
 my $threshold = 0.2; #allele frequency difference threshold, set as default 0.2
 my $noexclude = 0;
+my $chrflag = 0;
 
 GetOptions
  (
@@ -116,7 +134,8 @@ GetOptions
  "p|pop=s"       => \$population, # 1000G population frequency
  "v|verbose"     => \$verbose,    # set verbose logging
  "t|threshold=s" => \$threshold,  # set the allele frequency difference threshold
- "n|noexclude"   => \$noexclude,  # sets flag to keep all SNPs regardless of allele frequency differences   
+ "n|noexclude"   => \$noexclude,  # sets flag to keep all SNPs regardless of allele frequency differences  
+ "c|chromosome"  => \$chrflag,    # sets flag to say using a smaller than expected reference panel
  "i|indels"      => \$indelflag,  # sets flag for keeping/checking indels in the bim file
  "x|xyplot"      => \$plotflag    # sets flag for invoking frequency plots at the end of the comparison, requires GD or R
   );
@@ -184,6 +203,18 @@ print "Reference Panel:             $referenceused\n";
 print "Bim filename:                $bim_file\n";
 print "Reference filename:          $in_file\n";
 print "Allele frequencies filename: $frq_file\n";
+if ($chrflag)
+ {
+ print "Chromosome flag set:         Yes\n";
+ }
+else
+ {
+ print "Chromosome flag set:         No\n";
+ }
+
+
+
+
 if (!$noexclude)
  {
  print "Allele frequency threshold:  $threshold\n";
@@ -193,7 +224,7 @@ else
  print "Will not exclude any SNPs based on allele frequency differences\n";
  }
 
-
+ 
 if ($kgflag)
  {
  print "Population for 1000G:        $population\n";
@@ -221,6 +252,45 @@ else
  usage();
  die "exiting\n";
  }
+
+my $bim_count = 0;
+my $frq_count = 0;
+
+if (-e $bim_file)
+ {
+ $bim_count = get_counts($bim_file);
+ }
+else
+ {
+ print "ERROR: Unable to open specified bim file: $bim_file\n";
+ print "Please check path and filename and try again\n";
+ exit;
+ }
+ 
+if (-e $frq_file)
+ {
+ $frq_count = get_counts($frq_file);
+ }
+else
+ {
+ print "ERROR: Unable to open specified frequency file: $frq_file\n";
+ print "Please check path and filename and try again\n";
+ exit;
+ }
+
+
+if ($bim_count != ($frq_count-1))
+ {
+ print "WARNING: The number of variants in the bim and frq files are different\n";
+ }
+
+my $allele_coding_flag = check_allele_coding($bim_file);
+if ($allele_coding_flag == 2)
+ {
+ print "ERROR: Alleles coded as 1,2 this coding is not supported\n";
+ exit;
+ }
+ 
 
 open IN, "$bim_file" or die $!; # bim file
 open FRQ, "$frq_file" or die $!; # frequency file 
@@ -324,13 +394,14 @@ print SH "$tempfile\n";
 
 #force alleles
 my $newfile = $file_stem.'-updated';
-print SH "$plink --bfile $tempfile --reference-allele $forcefile --make-bed --out $newfile\n";
+print SH "$plink --bfile $tempfile --a2-allele $forcefile --make-bed --out $newfile\n";
 
 #split into per chromosome files
 for (my $i = 1; $i <= 23; $i++)
  {
  my $perchrfile = $newfile.'-chr'.$i;
- print SH "$plink --bfile $newfile --reference-allele $forcefile --make-bed --chr $i --out $perchrfile\n";
+ print SH "$plink --bfile $newfile --real-ref-alleles --make-bed --chr $i --out $perchrfile\n";
+ print SH "$plink --bfile $newfile --real-ref-alleles --recode vcf --chr $i --out $perchrfile\n";
  }
 print SH "rm TEMP*\n";
 
@@ -350,6 +421,11 @@ while (<IN>)
   #set alleles for strand and ref/alt checks
   my $allele1 = $temp[4];
   my $allele2 = $temp[5];
+  if ($allele_coding_flag == 1)
+   {
+   $allele1 =~ s/1234/ACGT/;
+   $allele2 =~ s/1234/ACGT/;
+   }
   $alleles[0] = $allele1;
   $alleles[1] = $allele2;
   my $bim_alleles = $allele1.':'.$allele2;
@@ -544,8 +620,8 @@ my $worked_check = $idmatch + $idmismatch + $mismatchpos;
 my $worked_check1 = $strand + $nostrand;
 
 print "Matching to $referenceused\n";
-print "\nPosition Matches\n ID matches $referenceused $idmatch\n ID Doesn't match $referenceused $idmismatch\n Total Position Matches $pos_check\nID Match\n Different position to $referenceused $mismatchpos\nNo Match to $referenceused $nothing\nSkipped (X, XY, Y, MT) $altchr\nTotal in bim file $total\nTotal processed $check_total\n\n"; 
-print "Indels (ignored in r1) $indel\n\n";
+print "\nPosition Matches\n ID matches $referenceused $idmatch\n ID Doesn't match $referenceused $idmismatch\n Total Position Matches $pos_check\nID Match\n Position different from $referenceused $mismatchpos\nNo Match to $referenceused $nothing\nSkipped (XY, Y, MT) $altchr\nTotal in bim file $total\nTotal processed $check_total\n\n"; 
+print "Indels $indel\n\n";
 print "SNPs not changed $unchanged\nSNPs to change ref alt $nomatch\nStrand ok $strand\nTotal Strand ok $check_total1\n\n";
 print "Strand to change $nostrand\nTotal checked $worked_check\nTotal checked Strand $worked_check1\n";
 if (!$noexclude)
@@ -559,8 +635,8 @@ print "Duplicates removed $duplicate\n";
 
 #print L "Total bim File Rows $total\n";
 print L "Matching to $referenceused\n";
-print L "\nPosition Matches\n ID matches $referenceused $idmatch\n ID Doesn't match $referenceused $idmismatch\n Total Position Matches $pos_check\nID Match\n Different position to $referenceused $mismatchpos\nNo Match to $referenceused $nothing\nSkipped (X, XY, Y, MT) $altchr\nTotal in bim file $total\nTotal processed $check_total\n\n"; 
-print L "Indels (ignored in r1) $indel\n\n";
+print L "\nPosition Matches\n ID matches $referenceused $idmatch\n ID Doesn't match $referenceused $idmismatch\n Total Position Matches $pos_check\nID Match\n Position different from $referenceused $mismatchpos\nNo Match to $referenceused $nothing\nSkipped (XY, Y, MT) $altchr\nTotal in bim file $total\nTotal processed $check_total\n\n"; 
+print L "Indels $indel\n\n";
 print L "SNPs not changed $unchanged\nSNPs to change ref alt $nomatch\nStrand ok $strand\nTotal Strand ok $check_total1\n\n";
 print L "Strand to change $nostrand\nTotal checked $worked_check\nTotal checked Strand $worked_check1\n";
 if (!$noexclude)
@@ -583,10 +659,10 @@ close E;
 close S;
 
 #clear the HRC hashes
-%id = ();
-%rs = ();
-%AltAf = ();
-%refalt = ();
+#%id = ();
+#%rs = ();
+#%AltAf = ();
+#%refalt = ();
 
 #my $checkinc = inc_check();
 #my $checkr = r_check();
@@ -779,9 +855,13 @@ sub check_strand
  
 sub getwidth
  {
- my $output = `stty size`;
- my @rowcols = split(/\s/, $output);
- my $cols = $rowcols[1];
+ #my $output = `stty size`;
+ #my @rowcols = split(/\s/, $output);
+ #my $cols = $rowcols[1];
+ 
+ my @winsize = &GetTerminalSize(\*STDOUT);
+ my ($cols, $rows, $xpix, $ypix) = @winsize;
+ 
  if (!$cols)
   {
   $cols = 80;
@@ -791,8 +871,8 @@ sub getwidth
 
 sub usage
  {
- print "\nUsage:\nFor HRC:\nperl HRC-1000G-check-bim-v4.2.pl -b <bim file> -f <Frequency file> -r <Reference panel> -h [-v -t <allele frequency threshold -n]\n";
- print "\nFor 1000G:\nperl HRC-1000G-check-bim-v4.2.pl -b <bim file> -f <Frequency file> -r <Reference panel> -g -p <population> [-v -t <allele frequency threshold -n]\n";
+ print "\nUsage:\nFor HRC:\nperl HRC-1000G-check-bim.pl -b <bim file> -f <Frequency file> -r <Reference panel> -h [-v -t <allele frequency threshold -n]\n";
+ print "\nFor 1000G:\nperl HRC-1000G-check-bim.pl -b <bim file> -f <Frequency file> -r <Reference panel> -g -p <population> [-v -t <allele frequency threshold -n]\n";
  print "\n\n";
  printusage("-b --bim", "bim file", "Plink format .bim file");
  printusage("-f --frequency", "Frequency file", "Plink format .frq allele frequency file, from plink --freq command");
@@ -802,6 +882,7 @@ sub usage
  printusage("-p --pop", "Population", "Population to check frequency against, 1000G only. Default ALL, options ALL, EUR, AFR, AMR, SAS, EAS");
  printusage("-v --verbose", "", "Optional flag to increase verbosity in the log file");
  printusage("-t --threshold", "Freq threshold", "Frequency difference to use when checking allele frequency of data set versus reference; default: 0.2; range: 0-1");
+ printusage("-c --chromosome", "Chromsome flag", "Optional flag to indicate to the program you are checking a subset of chromosomes and so to expect a smaller than normal reference panel");
  #printusage("-i --indels", "", "Optional flag to keep or exclude indels in the output, default: exclude");
  #printusage("-x --xyplot", "", "Optional flag to invoke plotting of the data set vs reference allele frequencies");
  printusage("-n --noexclude", "", "Optional flag to include all SNPs regardless of allele frequency differences, default is exclude based on -t threshold, overrides -t");
@@ -842,8 +923,20 @@ sub printusage
 sub read_hrc
  {
  my $file = $_[0];
- open IN, "$file" or die $!;
- while (<IN>)
+ #check if file has .gz suffix
+ my $zipped = checkgz($file);
+ my $z;
+ 
+ if ($zipped)
+  {
+  $z = new IO::Uncompress::Gunzip "$file" or die "IO::Uncompress::Gunzip failed: $GunzipError\n"; 
+  }
+ else
+  {
+  open $z, "$file" or die $!;
+  }
+  
+ while (<$z>)
   {
   chomp;
   if (!/\#.*/)
@@ -864,6 +957,11 @@ sub read_hrc
    $AltAf{$chrpos} = $temp[7];
    }
   }
+ if ($. < 10000000 and !$chrflag)
+  {
+  print "\nERROR: Reference appears smaller than expected this can be due to bgzip\nor by using a subset of the genome without the -c flag\nBgzip is not supported with the current Perl Library, please use the unzipped version\n";
+  exit;
+  }
  print " Done\n";
  close IN;
  }
@@ -875,8 +973,20 @@ sub read_kg
  my $freqcol;
  my $typecol = 0;
  
- open IN, "$file" or die $!;
- my $header = <IN>;
+ my $zipped = checkgz($file);
+ my $z;
+  
+ if ($zipped)
+  {
+  print "Reference Panel is zipped\n";
+  $z = new IO::Uncompress::Gunzip "$file" or die "IO::Uncompress::Gunzip failed: $GunzipError\n"; 
+  }
+ else
+  {
+  open $z, "$file" or die $!;
+  }
+ 
+ my $header = <$z>;
  chomp $header;
  my @titles = split(/\s+/, $header);
  
@@ -898,7 +1008,7 @@ sub read_kg
   die;
   }
  
- while (<IN>)
+ while (<$z>)
   {
   chomp;
   if ($. % 100000 == 0)
@@ -930,4 +1040,86 @@ sub read_kg
  
  close IN;
 
+ }
+ 
+ 
+sub checkgz
+ {
+ my $file = $_[0];
+ 
+ my @filecomponents = split(/\./, $file);
+ my $zipped = 0;
+ 
+ if ($filecomponents[$#filecomponents] eq 'gz')
+  {
+  print "Reference Panel is zipped\n";
+  $zipped = 1;
+  }
+ elsif ($filecomponents[$#filecomponents] eq 'zip')
+  {
+  print "WARNING: .zip format is not supported, skipping $file\n";
+  $zipped = -1;
+  } 
+ else
+  {
+  $zipped = 0;
+  }
+ return $zipped; 
+ } 
+ 
+sub get_counts
+ {
+ my $file = $_[0];
+ my $counts = 0;
+ open I, "$file" or die $!;
+ while (<I>)
+  {
+  $counts++;
+  }
+ close I; 
+ return $counts;
+ }
+ 
+ 
+sub check_allele_coding
+ {
+ my $file = $_[0];
+ my $total = 0;
+ my $code = 0;
+ my $oneTwo = 0;
+ my $oneTwoThreeFour = 0;
+ 
+ open I, "$file" or die $!;
+ while (<I>)
+  {
+  chomp;
+  my @temp = split/\s+/;  
+  my $allele1 = $temp[4];
+  my $allele2 = $temp[5];
+  my $alleles = $allele1.$allele2;
+  
+  if ($allele1 ne '0' and $allele2 ne '0')
+   {
+   if ($alleles eq '12' or $alleles eq '21')
+    {
+    $oneTwo++;
+    }
+   if ($alleles eq '23' or $alleles eq '34')
+    {
+    $oneTwoThreeFour++;
+    }
+   $total++;
+   }
+  }
+ 
+ if ($oneTwo == $total)
+  {
+  $code = 2;
+  }
+ elsif ($oneTwoThreeFour) 
+  {
+  $code = 1;
+  }
+  
+ return $code; 
  }
