@@ -35,7 +35,10 @@ output:
 ---
 
 ```{r setup, include = FALSE}
-options(stringsAsFactors = FALSE)
+options(stringsAsFactors = FALSE, knitr.table.format = "html")
+
+output_directory <- params[["output_directory"]]
+dir.create(output_directory, recursive = TRUE, showWarnings = FALSE)
 
 ### Load packages and functions
 # library("bookdown")
@@ -44,7 +47,7 @@ options(stringsAsFactors = FALSE)
 # library("forcats")
 # library("fs")
 # library("ggplot2")
-# library("kableExtra")
+# library("gt")
 # library("knitr")
 # library("rmarkdown")
 # library("scales")
@@ -53,38 +56,8 @@ options(stringsAsFactors = FALSE)
 # library("utils")
 `%>%` <- magrittr::`%>%`
 
-pretty_kable <- function(
-  data, 
-  font_size = 12, 
-  format_args = list(scientific = -1, digits = 3, big.mark = ","), 
-  col.names = NA,
-  full_width = TRUE,
-  format = "html",
-  ...
-) {
-  output <- knitr::kable(
-    x = data, 
-    format.args = format_args, 
-    col.names = col.names,
-    ...
-  )
-  kableExtra::kable_styling(
-    kable_input = output,
-    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
-    full_width = full_width,
-    position = "center",
-    font_size = font_size
-  )
-}
-
 
 ### Set knitr rmarkdown chunk options
-dir.create(
-  path = paste0(params[["output_directory"]], "/cache/"), 
-  recursive = TRUE, 
-  showWarnings = FALSE, 
-  mode = "0777"
-)
 knitr::opts_chunk$set(
   results = "asis",
   size = "small",
@@ -97,11 +70,13 @@ knitr::opts_chunk$set(
   crop = TRUE,
   autodep = TRUE,
   fig.align = "center",
-  fig.pos = "!H",
-  cache = params[["cache"]],
-  cache.path = paste0(params[["output_directory"]], "/cache/"),
-  fig.path = paste0(params[["output_directory"]], "/cache/")
+  fig.pos = "!H"
 )
+
+if (params[["cache"]]) {
+  dir.create(file.path(output_directory, "cache"), recursive = TRUE, showWarnings = FALSE, mode = "0777")
+  knitr::opts_chunk$set(cache = params[["cache"]], cache.path = paste0(output_directory, "/cache/"))
+}
 
 
 ### Define theme
@@ -230,10 +205,8 @@ all_chrosomoses %>%
     Count = n,
     `%` = p
   ) %>% 
-  pretty_kable(
-    align = "c", 
-    table.attr = "style='width:65%;'"
-  )
+  gt::gt(auto_align = "center") %>% 
+  gt::opt_row_striping()
 ```
 
 ### Variants binned by imputation INFO score
@@ -253,10 +226,8 @@ all_chrosomoses %>%
     Count = n,
     `%` = p
   ) %>% 
-  pretty_kable(
-    align = "c", 
-    table.attr = "style='width:65%;'"
-  )
+  gt::gt(auto_align = "center") %>% 
+  gt::opt_row_striping()
 ```
 
 ## Chromosome
@@ -293,10 +264,8 @@ for (ichr in c(1:22, "X")) {
       Count = n,
       `%` = p
     ) %>% 
-    pretty_kable(
-      align = "c", 
-      table.attr = "style='width:65%;'"
-    )
+    gt::gt(auto_align = "center") %>% 
+    gt::opt_row_striping()
   cat("\n\n")
   p2 <- ggplot2::ggplot(
     data = tmp %>% 
@@ -329,10 +298,8 @@ for (ichr in c(1:22, "X")) {
       Count = n,
       `%` = p
     ) %>% 
-    pretty_kable(
-      align = "c", 
-      table.attr = "style='width:65%;'"
-    )
+    gt::gt(auto_align = "center") %>% 
+    gt::opt_row_striping()
   cat("\n\n")
   p3 <- ggplot2::ggplot(
     data = tmp %>% 

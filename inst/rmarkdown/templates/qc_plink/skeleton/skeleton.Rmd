@@ -1,13 +1,9 @@
 ---
-title: '`r params[["title"]]`'
-author:
-- name: '`r params[["author_name"]]`'
-  affiliation: '`r params[["author_affiliation"]]`'
-  email: '`r params[["author_email"]]`'
-date: '`r format(Sys.time(), "%B %d, %Y")`'
-monofont: "Source Code Pro"
-monofontoptions: "Scale=0.7"
 params:
+  title: "Genomic Array Quality-Control"
+  author_name: "Firstname Lastname"
+  author_affiliation: "Institution"
+  author_email: "some@email.com"
   input_directory: NULL
   output_directory: NULL
   cohort_name: NULL
@@ -24,22 +20,24 @@ params:
   population: NULL
   pca_components: 10
   pca_threshold: 3
-  check_bim_script: "HRC-1000G-check-bim.pl"
+  check_bim_script: !r system.file("perl", "HRC-1000G-check-bim.pl", package = "dgapaq")
   ref1kg_panel: NULL
   ref1kg_population: NULL
   ref1kg_genotypes: NULL
   ref1kg_legend: NULL
   ref1kg_fasta: NULL
-  bin_path: !r list(bcftools = "/usr/bin/bcftools", bgzip = "/usr/bin/bgzip", plink = "/usr/bin/plink1.9", gcta = "/usr/bin/gcta64")
-  title: "Genomic Array Quality-Control"
-  author_name: "Firstname Lastname"
-  author_affiliation: "Institution"
-  author_email: "some@email.com"
+  bin_path: !r list(bcftools = "bcftools", bgzip = "bgzip", plink = "plink1.9", gcta = "gcta64")
   cache: FALSE
   show_code: FALSE
   n_cores: 1
   dpi: 120
   gg_fontsize: 12
+title: '`r params[["title"]]`'
+author:
+- name: '`r params[["author_name"]]`'
+  affiliation: '`r params[["author_affiliation"]]`'
+  email: '`r params[["author_email"]]`'
+date: '`r format(Sys.time(), "%B %d, %Y")`'
 output:
   bookdown::html_document2:
     theme: simplex
@@ -52,13 +50,17 @@ output:
     fig_caption: true
     number_sections: true
     self_contained: true
+    mathjax: default
     df_print: kable
 editor_options: 
-  chunk_output_type: inline
+  chunk_output_type: console
 ---
 
-```{r setup, include = FALSE, echo = FALSE}
+```{r setup, include = FALSE}
 options(stringsAsFactors = FALSE, knitr.table.format = "html")
+
+output_directory <- params[["output_directory"]]
+dir.create(output_directory, recursive = TRUE, showWarnings = FALSE)
 
 # library("bookdown")
 # library("data.table")
@@ -67,8 +69,8 @@ options(stringsAsFactors = FALSE, knitr.table.format = "html")
 # library("ggplot2")
 # library("ggpubr")
 # library("ggrepel")
+# library("gt")
 # library("Hmisc")
-# library("kableExtra")
 # library("knitr")
 # library("parallel")
 # library("qdap")
@@ -82,22 +84,7 @@ options(stringsAsFactors = FALSE, knitr.table.format = "html")
 # library("writexl")
 `%>%` <- magrittr::`%>%`
 
-invisible(
-  sapply(
-    X = paste(params[["output_directory"]], c("tmp", "plink_qc", "vcf_qc"), sep = "/"), 
-    FUN = dir.create,
-    showWarnings = FALSE, 
-    recursive = TRUE, 
-    mode = "0777"
-  )
-)
-temp_directory <- paste0(params[["output_directory"]], "/tmp")
-dir.create(paste0(temp_directory, "/1kgenome_small"), showWarnings = FALSE, recursive = TRUE, mode = "0777")
-
-if (params[["cache"]]) {
-  dir.create(paste0(params[["output_directory"]], "/cache/"), recursive = TRUE, showWarnings = FALSE, mode = "0777")
-}
-
+### Set knitr rmarkdown chunk options
 knitr::opts_chunk$set(
   results = "asis",
   size = "small",
@@ -110,35 +97,32 @@ knitr::opts_chunk$set(
   crop = TRUE,
   autodep = TRUE,
   fig.align = "center",
-  fig.pos = "!H",
-  cache = params[["cache"]],
-  cache.path = paste0(params[["output_directory"]], "/cache/"),
-  fig.path = paste0(params[["output_directory"]], "/figures/")
+  fig.pos = "!H"
 )
 
-pretty_kable <- function(
-  data, 
-  font_size = 12, 
-  format_args = list(scientific = -1, digits = 3, big.mark = ","), 
-  col.names = NA,
-  full_width = TRUE,
-  echo = TRUE,
-  ...
-) {
-  colnames(data) <- Hmisc::capitalize(colnames(data))
-  options(knitr.table.format = "html")
-  output <- knitr::kable(x = data, format.args = format_args, col.names = col.names, ...)
-  output <- kableExtra::kable_styling(
-    kable_input = output,
-    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
-    full_width = ifelse(is.null(full_width), FALSE, full_width),
-    position = "center",
-    font_size = font_size
+invisible(
+  sapply(
+    X = file.path(output_directory, c("tmp", "plink_qc", "vcf_qc")), 
+    FUN = dir.create,
+    showWarnings = FALSE, 
+    recursive = TRUE, 
+    mode = "0777"
   )
-  
-  if (echo) print(output) else invisible(output)
+)
+temp_directory <- file.path(output_directory, "tmp")
+dir.create(file.path(temp_directory, "1kgenome_small"), showWarnings = FALSE, recursive = TRUE, mode = "0777")
+
+if (params[["cache"]]) {
+  dir.create(file.path(output_directory, "cache"), recursive = TRUE, showWarnings = FALSE, mode = "0777")
+  knitr::opts_chunk$set(cache = params[["cache"]], cache.path = paste0(output_directory, "/cache/"))
 }
 
+
+### Define theme
+ggplot2::theme_set(ggplot2::theme_light(base_size = params[["gg_fontsize"]]))
+
+
+### Additional functions
 pval_trans <- function() {
   neglog10_breaks <- function(n = 5) {
     function(x) {
@@ -166,23 +150,31 @@ pval_trans <- function() {
     domain = c(0, 1)
   )
 }
-
-ggplot2::theme_set(ggplot2::theme_light(base_size = params[["gg_fontsize"]]))
 ```
 
 ```{r data}
 cat(
-  "Data from:", dirname(params[["input_directory"]]), 
-  file = paste0(params[["output_directory"]], "/README.md")
+  "Data from:", dirname(params[["input_files"]]), 
+  file = file.path(params[["output_directory"]], "README.md")
 )
 
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", params[["input_directory"]], 
-  "--snps-only", 
-  "--make-bed",
-  "--out", paste0(temp_directory, "/raw_data")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
+if (length(list.files(params[["input_files"]], pattern = ".bed")) != 0) {
+  system(command = paste(
+    params[["bin_path"]][["plink"]], 
+    "--bfile", params[["input_files"]], 
+    "--snps-only", 
+    "--make-bed",
+    "--out", file.path(temp_directory, "raw_data")
+  ), ignore.stdout = TRUE, ignore.stderr = TRUE)
+} else {
+  system(command = paste(
+    params[["bin_path"]][["plink"]], 
+    "--file", params[["input_files"]], 
+    "--snps-only", 
+    "--make-bed",
+    "--out", file.path(temp_directory, "raw_data")
+  ), ignore.stdout = TRUE, ignore.stderr = TRUE)
+}
 ```
 
 
@@ -190,7 +182,7 @@ system(command = paste(
 # Parameters
 
 * Raw data: 
-    `` `r params[["input_directory"]]` ``
+    `` `r params[["input_files"]]` ``
 * 1,000 Genomes files: 
     `` `r params[["ref1kg_genotypes"]]` ``
 * Reference population: 
@@ -223,9 +215,9 @@ system(command = paste(
 
 Genotyped using `r if (is.null(params[["array"]])) "unspecified" else params[["array"]]` array.
 
-```{r cohort_overview, include = FALSE}
+```{r cohort-overview, include = FALSE}
 samples <- dplyr::mutate_at(
-  .tbl = utils::read.table(paste0(temp_directory, "/raw_data.fam")), 
+  .tbl = utils::read.table(file.path(temp_directory, "raw_data.fam")), 
   .vars = 1:2, 
   .funs = as.character
 )
@@ -235,13 +227,13 @@ samples_duplicated <- table(factor(
   levels = c(FALSE, TRUE)
 ))[["TRUE"]]
 
-snps_number <- nrow(data.table::fread(input = paste0(temp_directory, "/raw_data.bim"), select = 1))
+snps_number <- nrow(data.table::fread(input = file.path(temp_directory, "raw_data.bim"), select = 1))
 
-cohort_details <- paste0(dirname(params[["input_directory"]]), "/Details_Cohorts.xlsx")
+cohort_details <- file.path(dirname(params[["input_files"]]), "Details_Cohorts.xlsx")
 if (file.exists(cohort_details)) {
   recruit_centre <- readxl::read_xlsx(path = cohort_details, sheet = 1) %>% 
     dplyr::select(Sample.Name = 1, Cohort = 2, Gender = 3) %>%
-    dplyr::filter(Sample.Name %in% samples[[2]]) %>% 
+    dplyr::filter(Sample.Name %in% !!samples[[2]]) %>% 
     dplyr::mutate(Sample.Name = as.character(Sample.Name))
 } else {
   recruit_centre <- samples %>%
@@ -252,23 +244,22 @@ if (file.exists(cohort_details)) {
 
 recruit_centre_table <- recruit_centre %>%
   dplyr::mutate(Gender = factor(Gender, levels = c(1, 2, 0))) %>% 
-  dplyr::group_by(Cohort, Gender, .drop = FALSE) %>% 
-  dplyr::tally() %>%
-  tidyr::spread(Gender, n) %>% 
+  dplyr::count(Cohort, Gender, .drop = FALSE) %>% 
+  tidyr::pivot_wider(names_from = "Gender", values_from = "n") %>% 
   dplyr::rowwise() %>% 
-  dplyr::mutate(Total = sum(`0`, `1`, `2`)) %>% 
-  dplyr::ungroup() %>% 
+  dplyr::mutate(Total = sum(c(`0`, `1`, `2`))) %>% 
   dplyr::rename(
-    male = `1`,
-    female = `2`,
-    unspecified = `0`
+    Male = `1`,
+    Female = `2`,
+    Unspecified = `0`
   ) %>%
+  dplyr::ungroup() %>% 
   dplyr::add_row(
     Cohort = "ALL", 
     Total = sum(.$Total),
-    male = sum(.$male),
-    female = sum(.$female),
-    unspecified = sum(.$unspecified)
+    Male = sum(.$Male),
+    Female = sum(.$Female),
+    Unspecified = sum(.$Unspecified)
   )
 ```
 
@@ -279,15 +270,11 @@ PLINK files includes:
 * **`r scales::comma(snps_number)`** variants
 
 ```{r cohort-overview-table}
-pretty_kable(
-  data = recruit_centre_table,
-  align = "c", 
-  table.attr = "style='width:65%;'",
-  caption = "Number of samples per cohorts.", 
-  echo = FALSE
-) %>%
-  kableExtra::row_spec(row = nrow(recruit_centre_table), bold = TRUE) %>%
-  kableExtra::row_spec(c(" " = 1, "Gender" = 3, " " = 1))
+recruit_centre_table %>% 
+  gt::gt(auto_align = "center") %>% 
+  gt::opt_row_striping() %>% 
+  gt::tab_header(title = "Number of samples per cohorts.") %>%
+  gt::fmt_number(columns = 2:ncol(recruit_centre_table), decimals = 0)
 ```
 
 
@@ -300,12 +287,12 @@ pretty_kable(
 ```{r sample-call-rate-01, include = FALSE}
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/raw_data"), 
+  "--bfile", file.path(temp_directory, "raw_data"), 
   "--missing", 
-  "--out", paste0(temp_directory, "/raw_data")
+  "--out", file.path(temp_directory, "raw_data")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
-callrate_samples <- data.table::fread(paste0(temp_directory, "/raw_data.imiss")) %>%
+callrate_samples <- data.table::fread(file.path(temp_directory, "raw_data.imiss")) %>%
   dplyr::mutate_at(.vars = c("FID", "IID"), as.character) %>% 
   dplyr::arrange(F_MISS) %>%
   dplyr::mutate(labs = ifelse(F_MISS > 1 - params[["callrate_samples"]], IID, NA))
@@ -317,81 +304,66 @@ samples_toexclude <- callrate_samples %>%
 
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile ", paste0(temp_directory, "/raw_data"), 
+  "--bfile ", file.path(temp_directory, "raw_data"), 
   "--freq", 
-  "--out", paste0(temp_directory, "/raw_data")
+  "--out", file.path(temp_directory, "raw_data")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
-freqsnp <- data.table::fread(paste0(temp_directory, "/raw_data.frq"))
+freqsnp <- data.table::fread(file.path(temp_directory, "raw_data.frq"))
 
-freqsnp %>% 
-  dplyr::filter(MAF >= params[["maf_threshold"]]) %>% 
-  .[["SNP"]] %>% 
-  utils::write.table(
-    col.names = FALSE, 
-    row.names = FALSE, 
-    quote = FALSE,
-    file = paste0(temp_directory, "/raw_data_maf_geq.txt")
-  )
+utils::write.table(
+  x = dplyr::filter(freqsnp, MAF >= params[["maf_threshold"]])[["SNP"]],
+  file = file.path(temp_directory, "raw_data_maf_geq.txt"),
+  col.names = FALSE, 
+  row.names = FALSE, 
+  quote = FALSE
+)
 
-snp_maf_lower <- freqsnp %>% 
-  dplyr::filter(MAF < params[["maf_threshold"]]) %>% 
-  .[["SNP"]]
+snp_maf_lower <- dplyr::filter(freqsnp, MAF < params[["maf_threshold"]])[["SNP"]]
 
 is_maf_lower <- length(snp_maf_lower) > 0
 
 if (is_maf_lower) {
   utils::write.table(
-    snp_maf_lower, 
+    x = snp_maf_lower, 
     col.names = FALSE, row.names = FALSE, quote = FALSE,
-    file = paste0(temp_directory, "/raw_data_maf_lower.txt")
+    file = file.path(temp_directory, "raw_data_maf_lower.txt")
   )
 }
 
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/raw_data"), 
+  "--bfile", file.path(temp_directory, "raw_data"), 
   "--missing", 
-  "--extract", paste0(temp_directory, "/raw_data_maf_geq.txt"), 
-  "--out", paste0(temp_directory, "/raw_data_maf_geq")
+  "--extract", file.path(temp_directory, "raw_data_maf_geq.txt"), 
+  "--out", file.path(temp_directory, "raw_data_maf_geq")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
 if (is_maf_lower) {
   system(command = paste(
     params[["bin_path"]][["plink"]], 
-    "--bfile", paste0(temp_directory, "/raw_data"), 
+    "--bfile", file.path(temp_directory, "raw_data"), 
     "--missing", 
-    "--extract", paste0(temp_directory, "/raw_data_maf_lower.txt"), 
-    "--out", paste0(temp_directory, "/raw_data_maf_lower")
+    "--extract", file.path(temp_directory, "raw_data_maf_lower.txt"), 
+    "--out", file.path(temp_directory, "raw_data_maf_lower")
   ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 }
 
-callrate_samples_geq <- dplyr::arrange(
-  .data = data.table::fread(paste0(temp_directory, "/raw_data_maf_geq.imiss")), 
-  F_MISS
-)
+callrate_samples_geq <- file.path(temp_directory, "raw_data_maf_geq.imiss") %>% 
+  data.table::fread() %>% 
+  dplyr::arrange(F_MISS)
 
-prop_all <- sum(
-  callrate_samples[, "F_MISS"] > 1 - params[["callrate_samples"]]
-) / 
-  nrow(callrate_samples)
+prop_all <- sum(callrate_samples[, "F_MISS"] > 1 - params[["callrate_samples"]]) / nrow(callrate_samples)
 
-prop_maf_geq <- sum(
-  callrate_samples_geq[, "F_MISS"] > 1 - params[["callrate_samples"]]
-) /
-  nrow(callrate_samples_geq)
+prop_maf_geq <- sum(callrate_samples_geq[, "F_MISS"] > 1 - params[["callrate_samples"]]) / nrow(callrate_samples_geq)
 
 prop_diff_maf_geq <- abs((prop_maf_geq - prop_all) / prop_all) >= 0.05
 
 if (is_maf_lower) {
-  callrate_samples_lower <- dplyr::arrange(
-    .data = data.table::fread(paste0(temp_directory, "/raw_data_maf_lower.imiss")), 
-    F_MISS
-  )
-  prop_maf_lower <- sum(
-    callrate_samples_lower[, "F_MISS"] > 1 - params[["callrate_samples"]]
-  ) / 
-    nrow(callrate_samples_lower)
+  callrate_samples_lower <- file.path(temp_directory, "raw_data_maf_lower.imiss") %>% 
+    data.table::fread() %>% 
+    dplyr::arrange(F_MISS)
+  prop_maf_lower <- sum(callrate_samples_lower[, "F_MISS"] > 1 - params[["callrate_samples"]]) / nrow(callrate_samples_lower)
   prop_diff_maf_lower <- abs((prop_maf_lower - prop_all) / prop_all) >= 0.05
 } else {
   prop_diff_maf_lower <- NA
@@ -446,14 +418,12 @@ cat(
 ```
 
 ```{r sample-call-rate-04}
-pretty_kable(
-  data = callrate_thresholds_table,
-  align = "c", 
-  table.attr = "style='width:65%;'",
-  caption = paste(
-    "Number of samples to exclude for", qdap::replace_number(length(callrate_thresholds)), "call rate thresholds."
+callrate_thresholds_table %>% 
+  gt::gt(auto_align = "center") %>% 
+  gt::opt_row_striping() %>% 
+  gt::tab_header(
+    paste("Number of samples to exclude for", qdap::replace_number(length(callrate_thresholds)), "call rate thresholds.")
   )
-)
 ```
 
 ```{r sample-call-rate-05, fig.cap = "Sample call rate."}
@@ -479,7 +449,7 @@ ggplot2::ggplot(
     colour = "firebrick2", 
     linetype = 2
   ) +
-  ggplot2::scale_x_continuous(labels = scales::comma_format()) +
+  ggplot2::scale_x_continuous(labels = scales::comma_format(), trans = "log10") +
   ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)) +
   ggplot2::labs(x = "Samples", y = "Call rate")
 ```
@@ -487,10 +457,10 @@ ggplot2::ggplot(
 ```{r sample-call-rate-06, eval = nrow(callrate_samples_toexclude) != 0}
 callrate_samples_toexclude %>% 
   dplyr::mutate(Call_Rate = scales::percent(Call_Rate, accuracy = 0.01)) %>% 
-  pretty_kable(
-    align = "c", 
-    table.attr = "style='width:65%;'",
-    caption = paste0(
+  gt::gt(auto_align = "center") %>% 
+  gt::opt_row_striping() %>% 
+  gt::tab_header(
+    paste0(
       "Samples to be excluded for a call rate threshold of ", 
       scales::percent(params[["callrate_samples"]], accuracy = 0.01), 
       "."
@@ -504,12 +474,12 @@ callrate_samples_toexclude %>%
 ```{r gender-check-01}
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/raw_data"), 
+  "--bfile", file.path(temp_directory, "raw_data"), 
   "--check-sex",
-  "--out", paste0(temp_directory, "/raw_data")
+  "--out", file.path(temp_directory, "raw_data")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
-gender_file_check <- file.exists(paste0(temp_directory, "/raw_data.sexcheck"))
+gender_file_check <- file.exists(file.path(temp_directory, "raw_data.sexcheck"))
 
 if (!gender_file_check) {
   cat("Warning: gender check was not achieved, due to no polymorphic X chromosome in data.\n\n")
@@ -517,7 +487,7 @@ if (!gender_file_check) {
 ```
 
 ```{r gender-check-02, eval = gender_file_check, include = FALSE}
-sexcheck <- data.table::fread(paste0(temp_directory, "/raw_data.sexcheck")) %>%
+sexcheck <- data.table::fread(file.path(temp_directory, "raw_data.sexcheck")) %>%
   dplyr::mutate_at(.vars = c("FID", "IID"), as.character) %>% 
   dplyr::full_join(y = callrate_samples, by = c("FID", "IID")) %>%
   dplyr::left_join(y = recruit_centre, by = c("IID" = "Sample.Name")) %>%
@@ -622,22 +592,22 @@ ggplot2::ggplot(
 ```{r heterozygosity-01, include = FALSE}
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/raw_data"), 
+  "--bfile", file.path(temp_directory, "raw_data"), 
   "--het",
-  "--out", paste0(temp_directory, "/raw_data_auto")
+  "--out", file.path(temp_directory, "raw_data_auto")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
 if (is_maf_lower) {
   system(command = paste(
     params[["bin_path"]][["plink"]], 
-    "--bfile", paste0(temp_directory, "/raw_data"),
-    "--extract", paste0(temp_directory, "/raw_data_maf_lower.txt"),
+    "--bfile", file.path(temp_directory, "raw_data"),
+    "--extract", file.path(temp_directory, "raw_data_maf_lower.txt"),
     "--het",
-    "--out", paste0(temp_directory, "/raw_data_maf_lower")
+    "--out", file.path(temp_directory, "raw_data_maf_lower")
   ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 }
 
-heterozygosity <- data.table::fread(paste0(temp_directory, "/raw_data_auto.het")) %>%
+heterozygosity <- data.table::fread(file.path(temp_directory, "raw_data_auto.het")) %>%
   dplyr::mutate_at(.vars = c("FID", "IID"), as.character) %>% 
   dplyr::rename(N.NM. = `N(NM)`, O.HOM. = `O(HOM)`, E.HOM. = `E(HOM)`) %>%
   dplyr::full_join(y = callrate_samples, by = c("FID", "IID")) %>%
@@ -662,7 +632,7 @@ heterozygosity <- data.table::fread(paste0(temp_directory, "/raw_data_auto.het")
   dplyr::ungroup()
 
 if (is_maf_lower) {
-  heterozygosity_maf_lower <- data.table::fread(paste0(temp_directory, "/raw_data_maf_lower.het")) %>%
+  heterozygosity_maf_lower <- data.table::fread(file.path(temp_directory, "raw_data_maf_lower.het")) %>%
     dplyr::mutate_at(.vars = c("FID", "IID"), as.character) %>% 
     dplyr::rename(N.NM. = `N(NM)`, O.HOM. = `O(HOM)`, E.HOM. = `E(HOM)`) %>%
     dplyr::full_join(y = callrate_samples, by = c("FID", "IID")) %>%
@@ -918,7 +888,7 @@ ggpubr::ggarrange(
 ## Pruning Data
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/raw_data"), 
+  "--bfile", file.path(temp_directory, "raw_data"), 
   "--autosome", 
   "--set-hh-missing", 
   "--maf", params[["maf_threshold"]], 
@@ -926,32 +896,32 @@ system(command = paste(
   "--ld-window-r2 0.2", 
   "--ld-window-kb 50", 
   "--make-bed",
-  "--out", paste0(temp_directory, "/raw_data_pruned")
+  "--out", file.path(temp_directory, "raw_data_pruned")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
-raw_data_pruned <- data.table::fread(paste0(temp_directory, "/raw_data_pruned.fam"))
+raw_data_pruned <- data.table::fread(file.path(temp_directory, "raw_data_pruned.fam"))
 max_n_pairs <- nrow(raw_data_pruned) * (nrow(raw_data_pruned) - 1 ) / 2
 
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/raw_data_pruned"), 
+  "--bfile", file.path(temp_directory, "raw_data_pruned"), 
   "--freq", 
-  "--out ", paste0(temp_directory, "/raw_data_pruned")
+  "--out ", file.path(temp_directory, "raw_data_pruned")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/raw_data_pruned"), 
-  "--read-freq", paste0(temp_directory, "/raw_data_pruned.frq"), 
+  "--bfile", file.path(temp_directory, "raw_data_pruned"), 
+  "--read-freq", file.path(temp_directory, "raw_data_pruned.frq"), 
   "--genome", 
   "--min", params[["IBD_threshold"]],  
-  "--out", paste0(temp_directory, "/raw_data_pruned_Fast")
+  "--out", file.path(temp_directory, "raw_data_pruned_Fast")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
-relatedness <- data.table::fread(paste0(temp_directory, "/raw_data_pruned_Fast.genome")) %>%
+relatedness <- data.table::fread(file.path(temp_directory, "raw_data_pruned_Fast.genome")) %>%
   dplyr::distinct() %>%
   dplyr::mutate(PI_HAT = as.numeric(PI_HAT)) %>% 
-  dplyr::mutate_at(.vars = dplyr::vars(dplyr::vmatches("FID|IID")), .funs = as.character) %>% 
+  dplyr::mutate_at(.vars = dplyr::vars(dplyr::matches("FID|IID")), .funs = as.character) %>% 
   dplyr::anti_join(
     y = samples_toexclude, 
     by = c("FID1" = "FID", "IID1" = "IID")
@@ -987,14 +957,12 @@ data.frame(table(cut(
       c(" = Second degree relatives", "", " = First degree relatives", "", " = MZ twins/duplicates")
     )
   ) %>% 
-  pretty_kable(
-    align = "c", 
-    table.attr = "style='width:65%;'",
-    caption = paste0(
-      'The distribution of "PI_HAT" (proportion of IBD) for related samples in the dataset ',
-      "(IBD ≥ ", params[["IBD_threshold"]], ")."
-    )
-  )
+  gt::gt(auto_align = "center") %>% 
+  gt::opt_row_striping() %>% 
+  gt::tab_header(paste0(
+    'The distribution of "PI_HAT" (proportion of IBD) for related samples in the dataset ',
+    "(IBD ≥ ", params[["IBD_threshold"]], ")."
+  ))
 ```
 
 ```{r relatedness-03, eval = !params[["includes_relatives"]]}
@@ -1007,7 +975,7 @@ related_samples <- relatedness %>%
     by = c("FID1" = "FID", "IID1" = "IID")
   ) %>%
   dplyr::left_join(
-    dplyr::callrate_samples %>%
+    callrate_samples %>%
       dplyr::select(FID, IID, F_MISS) %>%
       dplyr::mutate_at(.vars = 1:2, as.character),
     by = c("FID2" = "FID", "IID2" = "IID"),
@@ -1021,14 +989,12 @@ related_samples <- relatedness %>%
   dplyr::arrange(dplyr::desc(PI_HAT))
                  
 if (nrow(related_samples) != 0) {
-  pretty_kable(
-    data = related_samples,
-    align = "c", 
-    table.attr = "style='width:65%;'",
-    caption = paste0(
+  related_samples %>% 
+    gt::gt(auto_align = "center") %>% 
+    gt::opt_row_striping() %>% 
+    gt::tab_header(paste0(
       "Pairs of samples with a proportion of IBD higher than ", params[["IBD_threshold"]], "."
-    )
-  )
+    ))
 }
 
 if (dplyr::n_distinct(dplyr::select(recruit_centre, Cohort)) > 1) {
@@ -1052,12 +1018,10 @@ if (dplyr::n_distinct(dplyr::select(recruit_centre, Cohort)) > 1) {
       "cross-cohort IBDs was found in the dataset.\n\n"
     )
     
-    pretty_kable(
-      data = cross_cohorts_IBD, 
-      align = "c", 
-      table.attr = "style='width:65%;'",
-      caption = "Cross cohort related sample pairs."
-    )
+    cross_cohorts_IBD %>% 
+      gt::gt(auto_align = "center") %>% 
+      gt::opt_row_striping() %>% 
+      gt::tab_header("Cross cohort related sample pairs.")
   } else {
     cat("No cross-cohort IBDs was found in the dataset.\n\n")
   }
@@ -1090,30 +1054,30 @@ imendel_file_check <- params[["includes_relatives"]]
 ```{r imendel-error-01, eval = params[["includes_relatives"]]}
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/raw_data"), 
+  "--bfile", file.path(temp_directory, "raw_data"), 
   "--mendel",
-  "--out ", paste0(temp_directory, "/raw_data") 
+  "--out ", file.path(temp_directory, "raw_data") 
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/raw_data"), 
-  "--extract", paste0(temp_directory, "/raw_data_maf_geq.txt"), 
+  "--bfile", file.path(temp_directory, "raw_data"), 
+  "--extract", file.path(temp_directory, "raw_data_maf_geq.txt"), 
   "--mendel", 
-  "--out", paste0(temp_directory, "/raw_data_maf_geq")
+  "--out", file.path(temp_directory, "raw_data_maf_geq")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
 if (is_maf_lower) {
   system(command = paste(
     params[["bin_path"]][["plink"]], 
-    "--bfile", paste0(temp_directory, "/raw_data"), 
-    "--extract", paste0(temp_directory, "/raw_data_maf_lower.txt"), 
+    "--bfile", file.path(temp_directory, "raw_data"), 
+    "--extract", file.path(temp_directory, "raw_data_maf_lower.txt"), 
     "--mendel", 
-    "--out", paste0(temp_directory, "/raw_data_maf_lower")
+    "--out", file.path(temp_directory, "raw_data_maf_lower")
   ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 }
 
-imendel_file_check <- file.exists(paste0(temp_directory, "/raw_data.imendel"))
+imendel_file_check <- file.exists(file.path(temp_directory, "raw_data.imendel"))
 
 if (!imendel_file_check) {
   cat("Mendel error rates check was not performed due to missing informations.\n\n")
@@ -1121,7 +1085,7 @@ if (!imendel_file_check) {
 ```
 
 ```{r imendel-error-02, eval = params[["includes_relatives"]] & imendel_file_check}
-mendel_errors <- data.table::fread(paste0(temp_directory, "/raw_data.imendel")) %>%
+mendel_errors <- data.table::fread(file.path(temp_directory, "raw_data.imendel")) %>%
   dplyr::mutate_at(.vars = dplyr::vars(FID, IID), as.character) %>% 
   dplyr::mutate(
     percentage = N / snps_number,
@@ -1130,7 +1094,7 @@ mendel_errors <- data.table::fread(paste0(temp_directory, "/raw_data.imendel")) 
   )
 
 # MAF >= 0.01
-mendel_errors_geq <- data.table::fread(paste0(temp_directory, "/raw_data_maf_geq.imendel")) %>%
+mendel_errors_geq <- data.table::fread(file.path(temp_directory, "raw_data_maf_geq.imendel")) %>%
   dplyr::mutate(percentage = N / snps_number)
 
 prop_maf_geq <- sum(mendel_errors_geq[["percentage"]] > params[["mendelian_samples"]]) / 
@@ -1143,7 +1107,7 @@ prop_diff_maf_geq <- abs((prop_maf_geq - prop_all) / prop_all) >= 0.05
 
 # MAF < 0.01
 if (is_maf_lower) {
-  mendel_errors_lower <- data.table::fread(paste0(temp_directory, "/raw_data_maf_lower.imendel")) %>% 
+  mendel_errors_lower <- data.table::fread(file.path(temp_directory, "raw_data_maf_lower.imendel")) %>% 
     dplyr::mutate(percentage = N / snps_number)
   
   prop_maf_lower <- sum(mendel_errors_lower[["percentage"]] > params[["mendelian_samples"]]) /
@@ -1194,13 +1158,11 @@ cbind(
   as.data.frame() %>%
   dplyr::mutate(mendel_threshold = scales::percent(x = mendel_threshold, accuracy = 0.01)) %>%
   `colnames<-`(c("Sample Mendel error threshold", "Samples to exclude", "Samples to exclude (MAF > 0.01)")) %>% 
-  pretty_kable(
-    align = "c", 
-    table.attr = "style='width:65%;'",
-    caption = paste(
-      "Number of samples to exclude for", qdap::replace_number(length(mendel_threshold)), "call rate thresholds."
-    )
-  )
+  gt::gt(auto_align = "center") %>% 
+  gt::opt_row_striping() %>% 
+  gt::tab_header(paste0(
+    "Number of samples to exclude for", qdap::replace_number(length(mendel_threshold)), "call rate thresholds."
+  ))
 ```
 
 ```{r imendel-error-03, eval = params[["includes_relatives"]] & imendel_file_check, fig.cap = "Sample Mendel error rate."}
@@ -1217,9 +1179,7 @@ ggplot2::ggplot(
     na.rm = TRUE
   ) +
   ggplot2::geom_hline(
-    mapping = ggplot2::aes(
-      yintercept = params[["mendelian_samples"]]
-    ), 
+    mapping = ggplot2::aes(yintercept = params[["mendelian_samples"]]), 
     colour = "firebrick2", 
     linetype = 2
   ) +
@@ -1233,7 +1193,7 @@ ggplot2::ggplot(
     size = 2.5,
     na.rm = TRUE
   ) +
-  ggplot2::scale_x_continuous(labels = scales::comma_format()) +
+  ggplot2::scale_x_continuous(labels = scales::comma_format(), trans = "log10") +
   ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)) +
   ggplot2::labs(x = "Samples", y = "Mendel Error Rate")
 ```
@@ -1251,14 +1211,12 @@ if (nrow(mendel_errors_samples)>0) {
       `Sample Mendel error rate` = scales::percent(x = percent, accuracy = 0.01)
     ) %>% 
     dplyr::select(-percent, -QC) %>% 
-    pretty_kable(
-      align = "c", 
-      table.attr = "style='width:65%;'",
-      caption = paste0(
-        "Samples to be checked for max per-trio error rate at ", 
+    gt::gt(auto_align = "center") %>% 
+    gt::opt_row_striping() %>% 
+    gt::tab_header(paste0(
+      "Samples to be checked for max per-trio error rate at ", 
         scales::percent(x = params[["mendelian_samples"]], accuracy = 0.01), "."
-      )
-    )
+    ))
 }
 
 samples_toexclude <- dplyr::bind_rows(
@@ -1275,11 +1233,11 @@ samples_toexclude <- dplyr::bind_rows(
 
 ```{r population-01, include = FALSE}
 ## Get Autosomal variants
-data.table::fread(paste0(temp_directory, "/raw_data.bim")) %>%
+data.table::fread(file.path(temp_directory, "raw_data.bim")) %>%
   dplyr::filter(V1 %in% seq(22)) %>%
   dplyr::select(V2) %>%
   utils::write.table(
-    file = paste0(temp_directory, "/raw_data_auto.txt"),
+    file = file.path(temp_directory, "raw_data_auto.txt"),
     quote = FALSE, 
     col.names = FALSE, 
     row.names = FALSE
@@ -1293,7 +1251,7 @@ samples_toexclude_pca <- samples_toexclude %>%
 
 utils::write.table(
   x = samples_toexclude_pca,
-  file = paste0(temp_directory, "/samples_toexclude_pca.txt"),
+  file = file.path(temp_directory, "samples_toexclude_pca.txt"),
   sep = "\t", 
   row.names = FALSE, 
   col.names = FALSE, 
@@ -1303,36 +1261,36 @@ utils::write.table(
 if (nrow(samples_toexclude_pca) > 0) {
   system(command = paste(
     params[["bin_path"]][["plink"]], 
-    "--bfile", paste0(temp_directory, "/raw_data"),
-    "--remove", paste0(temp_directory, "/samples_toexclude_pca.txt"),
-    "--extract", paste0(temp_directory, "/raw_data_auto.txt"),
+    "--bfile", file.path(temp_directory, "raw_data"),
+    "--remove", file.path(temp_directory, "samples_toexclude_pca.txt"),
+    "--extract", file.path(temp_directory, "raw_data_auto.txt"),
     "--snps-only",
     "--maf", params[["maf_threshold"]], 
     "--hwe", params[["hwe_pvalue"]], 
     "--geno 0.1", 
     "--make-bed",
-    "--out", paste0(temp_directory, "/clean_data_tmp")
+    "--out", file.path(temp_directory, "clean_data_tmp")
   ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 } else {
   system(command = paste(
     params[["bin_path"]][["plink"]], 
-    "--bfile", paste0(temp_directory, "/raw_data"), 
-    "--extract", paste0(temp_directory, "/raw_data_auto.txt"),
+    "--bfile", file.path(temp_directory, "raw_data"), 
+    "--extract", file.path(temp_directory, "raw_data_auto.txt"),
     "--snps-only",
     "--maf", params[["maf_threshold"]], 
     "--hwe", params[["hwe_pvalue"]], 
     "--geno 0.1", 
     "--make-bed",
-    "--out", paste0(temp_directory, "/clean_data_tmp")
+    "--out", file.path(temp_directory, "clean_data_tmp")
   ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 }
 
 ## Extract 1kgenome data
-data.table::fread(paste0(temp_directory, "/clean_data_tmp.bim")) %>%
+data.table::fread(file.path(temp_directory, "clean_data_tmp.bim")) %>%
   dplyr::filter(!V4 %in% unique(V4[duplicated(V4)])) %>%
   dplyr::select(V2) %>%
   utils::write.table(
-    file = paste0(temp_directory, "/clean_data_snp.txt"),
+    file = file.path(temp_directory, "clean_data_snp.txt"),
     row.names = FALSE, 
     col.names = FALSE, 
     quote = FALSE
@@ -1342,21 +1300,21 @@ parallel::mclapply(seq_len(22), mc.cores = min(params[["n_cores"]], 22), functio
   system(command = paste(
     params[["bin_path"]][["plink"]], 
     "--bfile", paste0(params[["ref1kg_genotypes"]], "Chr", i),
-    "--extract", paste0(temp_directory, "/clean_data_snp.txt"), 
+    "--extract", file.path(temp_directory, "clean_data_snp.txt"), 
     "--snps-only",
     "--make-bed", 
-    "--out", paste0(temp_directory, "/1kgenome_small/1kgenome_small_chr", sprintf("%02d", i))
+    "--out", file.path(temp_directory, file.path("1kgenome_small", paste0("1kgenome_small_chr", sprintf("%02d", i))))
   ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 })
 
 raw_data_1kgenome_files <- t(sapply(
-  X = paste0(temp_directory, "/1kgenome_small/1kgenome_small_chr", sprintf("%02d", seq_len(22))),
+  X = file.path(temp_directory, "1kgenome_small", paste0("1kgenome_small_chr", sprintf("%02d", seq_len(22)))),
   FUN = paste0, c(".bed", ".bim", ".fam"),
   simplify = TRUE, 
   USE.NAMES = FALSE
 ))
 
-list_1kgenome <- paste0(temp_directory, "/1kgenome_small/1kgenome_small_files.txt")
+list_1kgenome <- file.path(temp_directory, "1kgenome_small", "1kgenome_small_files.txt")
 
 utils::write.table(
   x = raw_data_1kgenome_files,
@@ -1368,7 +1326,7 @@ utils::write.table(
 
 first_chromosome <- gsub(".bed", "", raw_data_1kgenome_files[1, 1])
 
-out <- paste0(temp_directory, "/1kgenome_small/1kgenome_small_complete")
+out <- file.path(temp_directory, "1kgenome_small", "1kgenome_small_complete")
 
 system(command = paste(
   params[["bin_path"]][["plink"]], 
@@ -1385,10 +1343,10 @@ if (file.exists(paste0(out, "-merge.missnp"))) {
       params[["bin_path"]][["plink"]], 
       "--bfile", paste0(params[["ref1kg_genotypes"]], "Chr", i),
       "--exclude", paste0(out, "-merge.missnp"),
-      "--extract", paste0(temp_directory, "/clean_data_snp.txt"), 
+      "--extract", file.path(temp_directory, "clean_data_snp.txt"), 
       "--snps-only",
       "--make-bed",
-      "--out", paste0(temp_directory, "/1kgenome_small/1kgenome_small_chr", sprintf("%02d", i))
+      "--out", file.path(temp_directory, "1kgenome_small", paste0("1kgenome_small_chr", sprintf("%02d", i)))
     ), ignore.stdout = TRUE, ignore.stderr = TRUE)
   })
   system(command = paste(
@@ -1406,72 +1364,72 @@ if (file.exists(paste0(out, "-merge.missnp"))) {
 # Merge raw_data with 1kGenome; ERROR: Stopping due to mis-matching variants -- check +/- strand?
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/1kgenome_small/1kgenome_small_complete"),
+  "--bfile", file.path(temp_directory, "1kgenome_small", "1kgenome_small_complete"),
   "--bmerge", 
-    paste0(temp_directory, "/clean_data_tmp.bed"), 
-    paste0(temp_directory, "/clean_data_tmp.bim"),
-    paste0(temp_directory, "/clean_data_tmp.fam"), 
+    file.path(temp_directory, "clean_data_tmp.bed"), 
+    file.path(temp_directory, "clean_data_tmp.bim"),
+    file.path(temp_directory, "clean_data_tmp.fam"), 
   "--make-bed", 
-  "--out", paste0(temp_directory, "/raw_data_1kgenome")
+  "--out", file.path(temp_directory, "raw_data_1kgenome")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
 # Flip variant strand
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/1kgenome_small/1kgenome_small_complete"),
-  "--flip", paste0(temp_directory, "/raw_data_1kgenome-merge.missnp"), 
+  "--bfile", file.path(temp_directory, "1kgenome_small", "1kgenome_small_complete"),
+  "--flip", file.path(temp_directory, "raw_data_1kgenome-merge.missnp"), 
   "--make-bed",
-  "--out", paste0(temp_directory, "/1kgenome_small/1kgenome_small_flipped")
+  "--out", file.path(temp_directory, "1kgenome_small", "1kgenome_small_flipped")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
 # Merge raw_data with 1kGenome; ERROR: Stopping due to mis-matching variants -- check +/- strand?
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/1kgenome_small/1kgenome_small_flipped"),
+  "--bfile", file.path(temp_directory, "1kgenome_small", "1kgenome_small_flipped"),
   "--bmerge", 
-    paste0(temp_directory, "/clean_data_tmp.bed"), 
-    paste0(temp_directory, "/clean_data_tmp.bim"),
-    paste0(temp_directory, "/clean_data_tmp.fam"), 
+    file.path(temp_directory, "clean_data_tmp.bed"), 
+    file.path(temp_directory, "clean_data_tmp.bim"),
+    file.path(temp_directory, "clean_data_tmp.fam"), 
   "--make-bed", 
-  "--out", paste0(temp_directory, "/raw_data_1kgenome")
+  "--out", file.path(temp_directory, "raw_data_1kgenome")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
 # Exclude mis-matching variants in raw_data And 1kGenome
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/1kgenome_small/1kgenome_small_flipped"),
-  "--exclude", paste0(temp_directory, "/raw_data_1kgenome-merge.missnp"), 
+  "--bfile", file.path(temp_directory, "1kgenome_small", "1kgenome_small_flipped"),
+  "--exclude", file.path(temp_directory, "raw_data_1kgenome-merge.missnp"), 
   "--make-bed",
-  "--out", paste0(temp_directory, "/1kgenome_small/1kgenome_small_flipped_cleaned")
+  "--out", file.path(temp_directory, "1kgenome_small", "1kgenome_small_flipped_cleaned")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/clean_data_tmp"),
-  "--exclude", paste0(temp_directory, "/raw_data_1kgenome-merge.missnp"), 
+  "--bfile", file.path(temp_directory, "clean_data_tmp"),
+  "--exclude", file.path(temp_directory, "raw_data_1kgenome-merge.missnp"), 
   "--make-bed",
-  "--out", paste0(temp_directory, "/clean_data_tmp_cleaned")
+  "--out", file.path(temp_directory, "clean_data_tmp_cleaned")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
 # Final, Merge raw_data with 1kGenome
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/1kgenome_small/1kgenome_small_flipped_cleaned"),
+  "--bfile", file.path(temp_directory, "1kgenome_small", "1kgenome_small_flipped_cleaned"),
   "--bmerge ", 
-    paste0(temp_directory, "/clean_data_tmp_cleaned.bed"), 
-    paste0(temp_directory, "/clean_data_tmp_cleaned.bim"),
-    paste0(temp_directory, "/clean_data_tmp_cleaned.fam"), 
+    file.path(temp_directory, "clean_data_tmp_cleaned.bed"), 
+    file.path(temp_directory, "clean_data_tmp_cleaned.bim"),
+    file.path(temp_directory, "clean_data_tmp_cleaned.fam"), 
   "--make-bed", 
-  "--out", paste0(temp_directory, "/raw_data_1kgenome")
+  "--out", file.path(temp_directory, "raw_data_1kgenome")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
 # Keep only variants in common between raw_data and 1kGenome
 dplyr::intersect(
- data.table::fread(paste0(temp_directory, "/1kgenome_small/1kgenome_small_flipped_cleaned.bim"))[["V2"]],
- data.table::fread(paste0(temp_directory, "/clean_data_tmp_cleaned.bim"))[["V2"]]
+ data.table::fread(file.path(temp_directory, "1kgenome_small", "1kgenome_small_flipped_cleaned.bim"))[["V2"]],
+ data.table::fread(file.path(temp_directory, "clean_data_tmp_cleaned.bim"))[["V2"]]
 ) %>%
   utils::write.table(
-    file = paste0(temp_directory, "/raw_data_1kgenome_snps.txt"),
+    file = file.path(temp_directory, "raw_data_1kgenome_snps.txt"),
     col.names = FALSE, 
     row.names = FALSE, 
     quote = FALSE, 
@@ -1480,19 +1438,19 @@ dplyr::intersect(
 
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/raw_data_1kgenome"), 
-  "--extract", paste0(temp_directory, "/raw_data_1kgenome_snps.txt"), 
+  "--bfile", file.path(temp_directory, "raw_data_1kgenome"), 
+  "--extract", file.path(temp_directory, "raw_data_1kgenome_snps.txt"), 
   "--make-bed ",
-  "--out", paste0(temp_directory, "/raw_data_1kgenome")
+  "--out", file.path(temp_directory, "raw_data_1kgenome")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
 ## Check palindromic variants
-data.table::fread(paste0(temp_directory, "/raw_data_1kgenome.bim")) %>%
+data.table::fread(file.path(temp_directory, "raw_data_1kgenome.bim")) %>%
   tidyr::unite(alleles, V5, V6, remove = FALSE, sep = "") %>%
   dplyr::filter(alleles %in% c("GC", "CG", "AT", "TA")) %>%
   dplyr::select(V2) %>%
   utils::write.table(
-    file = paste0(temp_directory, "/raw_data_1kgenome_palindromic.txt"),
+    file = file.path(temp_directory, "raw_data_1kgenome_palindromic.txt"),
     row.names = FALSE, 
     col.names = FALSE, 
     quote = FALSE
@@ -1500,55 +1458,55 @@ data.table::fread(paste0(temp_directory, "/raw_data_1kgenome.bim")) %>%
 
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/raw_data_1kgenome"), 
-  "--exclude", paste0(temp_directory, "/raw_data_1kgenome_palindromic.txt"), 
+  "--bfile", file.path(temp_directory, "raw_data_1kgenome"), 
+  "--exclude", file.path(temp_directory, "raw_data_1kgenome_palindromic.txt"), 
   "--make-bed ",
-  "--out", paste0(temp_directory, "/raw_data_1kgenome")
+  "--out", file.path(temp_directory, "raw_data_1kgenome")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
 ## Pop studied and 1kgenome
 system(command = paste(
   params[["bin_path"]][["gcta"]], 
-  "--bfile", paste0(temp_directory, "/raw_data_1kgenome"),
+  "--bfile", file.path(temp_directory, "raw_data_1kgenome"),
   "--make-grm-bin", 
   "--pca", params[["pca_components"]], 
   "--thread-num", params[["n_cores"]],
-  "--out", paste0(temp_directory, "/raw_data_1kgenome")
+  "--out", file.path(temp_directory, "raw_data_1kgenome")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
 system(command = paste(
   params[["bin_path"]][["gcta"]], 
-  "--grm", paste0(temp_directory, "/raw_data_1kgenome"), 
+  "--grm", file.path(temp_directory, "raw_data_1kgenome"), 
   "--pca", params[["pca_components"]], 
   "--thread-num", params[["n_cores"]], 
-  "--out", paste0(temp_directory, "/raw_data_1kgenome")
+  "--out", file.path(temp_directory, "raw_data_1kgenome")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
 ## Analysis summary
 # variant
 n_good_snp <- nrow(data.table::fread(
-  input = paste0(temp_directory, "/clean_data_tmp.bim"), 
+  input = file.path(temp_directory, "clean_data_tmp.bim"), 
   select = 1
 ))
 
 n_good_snp_1kg <- nrow(data.table::fread(
-  input = paste0(temp_directory, "/raw_data_1kgenome.bim"), 
+  input = file.path(temp_directory, "raw_data_1kgenome.bim"), 
   select = 1
 ))
 
 # Samples
 n_samples <- nrow(data.table::fread(
-  input = paste0(temp_directory, "/raw_data_1kgenome.fam"), 
+  input = file.path(temp_directory, "raw_data_1kgenome.fam"), 
   select = 1
 ))
 
 n_samples_1kg <- nrow(data.table::fread(
-  input = paste0(temp_directory, "/1kgenome_small/1kgenome_small_flipped_cleaned.fam"), 
+  input = file.path(temp_directory, "1kgenome_small", "1kgenome_small_flipped_cleaned.fam"), 
   select = 1
 ))
   
 data_pca <- dplyr::bind_rows(
-  data.table::fread(paste0(temp_directory, "/clean_data_tmp.fam")) %>%
+  data.table::fread(file.path(temp_directory, "clean_data_tmp.fam")) %>%
     dplyr::mutate(POP = "raw_data") %>%
     dplyr::select(V2, POP) %>%
     dplyr::rename(IID = "V2") %>% 
@@ -1559,10 +1517,10 @@ data_pca <- dplyr::bind_rows(
     dplyr::mutate(IID = as.character(IID))
 ) %>%
   dplyr::filter(
-    IID %in% as.character(data.table::fread(paste0(temp_directory, "/raw_data_1kgenome.fam"))[["V2"]])
+    IID %in% as.character(data.table::fread(file.path(temp_directory, "raw_data_1kgenome.fam"))[["V2"]])
   ) %>%
   dplyr::left_join(
-    y = data.table::fread(paste0(temp_directory, "/raw_data_1kgenome.eigenvec")) %>%
+    y = data.table::fread(file.path(temp_directory, "raw_data_1kgenome.eigenvec")) %>%
       `colnames<-`(c("FID", "IID", paste0("PC", seq_len(params[["pca_components"]])))) %>% 
       dplyr::mutate(IID = as.character(IID)),
     by = "IID"
@@ -1588,7 +1546,7 @@ data_pca <- dplyr::bind_rows(
   dplyr::ungroup()
 
 ## Compute components inertia
-inertia_pca <- data.table::fread(paste0(temp_directory, "/raw_data_1kgenome.eigenval")) %>%
+inertia_pca <- data.table::fread(file.path(temp_directory, "raw_data_1kgenome.eigenval")) %>%
   tibble::rownames_to_column("x") %>%
   dplyr::mutate(y = V1 / sum(V1))
 ```
@@ -1614,7 +1572,7 @@ centre_pca <- data_pca %>%
   dplyr::select(IID, Population, dplyr::contains("centroid")) %>%
   dplyr::mutate_at(.vars = dplyr::vars(IID, Population), .funs = as.character)
 
-check_ethnicity <- data.table::fread(paste0(temp_directory, "/clean_data_tmp.fam")) %>%
+check_ethnicity <- data.table::fread(file.path(temp_directory, "clean_data_tmp.fam")) %>%
   dplyr::select(FID = 1, IID = 2) %>%
   dplyr::mutate_all(as.character) %>%
   dplyr::left_join(
@@ -1822,15 +1780,13 @@ if (nrow(not_target_population) > 15) {
 } else {
   not_target_population %>%
     dplyr::select(FID, IID, ClosestPop) %>%
-    dplyr::rename("Closest Population" = ClosestPop) %>%
-    pretty_kable(
-      align = "c", 
-      table.attr = "style='width:65%;'",
-      caption = paste0(
+    dplyr::rename("Closest Population" = ClosestPop) %>% 
+    gt::gt(auto_align = "center") %>% 
+    gt::opt_row_striping() %>% 
+    gt::tab_header(paste0(
         "Samples determined as non-", pop_name, "(s) based on PCA ", 
         "(N = ", scales::comma(nrow(not_target_population)), ")."
-      )
-    )
+    ))
 }
 ```
 
@@ -1840,7 +1796,7 @@ samples_toexclude %>%
   dplyr::filter(grepl("Sample_Call_Rate|Heterozygosity_Check$", QC)) %>%
   dplyr::distinct(FID, IID) %>%
   utils::write.table(
-    file = paste0(temp_directory, "/samples_toexclude_pca_within.txt"),
+    file = file.path(temp_directory, "samples_toexclude_pca_within.txt"),
     sep = "\t", 
     row.names = FALSE, 
     col.names = FALSE, 
@@ -1849,29 +1805,29 @@ samples_toexclude %>%
 
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/clean_data_tmp"), 
-  "--remove", paste0(temp_directory, "/samples_toexclude_pca_within.txt"), 
+  "--bfile", file.path(temp_directory, "clean_data_tmp"), 
+  "--remove", file.path(temp_directory, "samples_toexclude_pca_within.txt"), 
   "--make-bed", 
-  "--out", paste0(temp_directory, "/clean_data_tmp_within_a")
+  "--out", file.path(temp_directory, "clean_data_tmp_within_a")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
 system(command = paste(
   params[["bin_path"]][["gcta"]], 
-  "--bfile", paste0(temp_directory, "/clean_data_tmp_within_a"), 
+  "--bfile", file.path(temp_directory, "clean_data_tmp_within_a"), 
   "--make-grm-bin", 
   "--thread-num", params[["n_cores"]],
-  "--out", paste0(temp_directory, "/clean_data_tmp_within_b")
+  "--out", file.path(temp_directory, "clean_data_tmp_within_b")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
 system(command = paste(
   params[["bin_path"]][["gcta"]], 
-  "--grm", paste0(temp_directory, "/clean_data_tmp_within_b"), 
+  "--grm", file.path(temp_directory, "clean_data_tmp_within_b"), 
   "--pca", params[["pca_components"]],
   "--thread-num", params[["n_cores"]],
-  "--out", paste0(temp_directory, "/clean_data_tmp_within")
+  "--out", file.path(temp_directory, "clean_data_tmp_within")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
-eigenvec_pca <- data.table::fread(paste0(temp_directory, "/clean_data_tmp_within.eigenvec")) %>%
+eigenvec_pca <- data.table::fread(file.path(temp_directory, "clean_data_tmp_within.eigenvec")) %>%
   `colnames<-`(c("FID", "IID", paste0("PC", seq_len(params[["pca_components"]])))) %>%
   dplyr::mutate_at(.vars = c("FID", "IID"), .funs = as.character) %>% 
   dplyr::mutate(
@@ -1944,7 +1900,7 @@ p_within <- ggplot2::ggplot(
   ggplot2::theme(legend.position = "none")
 
 ## Compute components inertia
-inertia_within <- data.table::fread(paste0(temp_directory, "/clean_data_tmp_within.eigenval")) %>%
+inertia_within <- data.table::fread(file.path(temp_directory, "clean_data_tmp_within.eigenval")) %>%
   tibble::rownames_to_column("x") %>%
   dplyr::mutate(y = V1 / sum(V1)) %>%
   dplyr::select(x, y) %>% 
@@ -2041,7 +1997,7 @@ samples_toexclude_export <- samples_toexclude %>%
 
 utils::write.table(
   x = dplyr::filter(samples_toexclude_export, Status == "Exclude"),
-  file = paste0(temp_directory, "/samples_excluded.txt"),
+  file = file.path(temp_directory, "samples_excluded.txt"),
   sep = "\t", 
   col.names = TRUE, 
   quote = FALSE, 
@@ -2050,12 +2006,12 @@ utils::write.table(
 
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/raw_data"), 
-  "--remove", paste0(temp_directory, "/samples_excluded.txt"), 
+  "--bfile", file.path(temp_directory, "raw_data"), 
+  "--remove", file.path(temp_directory, "samples_excluded.txt"), 
   "--snps-only", 
   "--set-hh-missing", 
   "--make-bed", 
-  "--out", paste0(temp_directory, "/raw_data_good_samples")
+  "--out", file.path(temp_directory, "raw_data_good_samples")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 ```
 
@@ -2064,7 +2020,7 @@ system(command = paste(
 # Variant-based QC
 
 After excluding sample-based QC failed samples, variant-based QC was performed on 
-**`r scales::comma(nrow(data.table::fread(input = paste0(temp_directory, "/raw_data_good_samples.fam"), select = 1)))`** samples.  
+**`r scales::comma(nrow(data.table::fread(input = file.path(temp_directory, "raw_data_good_samples.fam"), select = 1)))`** samples.  
 
 
 ## Variant call rate
@@ -2072,12 +2028,12 @@ After excluding sample-based QC failed samples, variant-based QC was performed o
 ```{r variant-call-rate-01, include = FALSE}
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/raw_data_good_samples"), 
+  "--bfile", file.path(temp_directory, "raw_data_good_samples"), 
   "--missing",
-  "--out ", paste0(temp_directory, "/raw_data_good_samples")
+  "--out ", file.path(temp_directory, "raw_data_good_samples")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
-callrate_snps_raw <- data.table::fread(paste0(temp_directory, "/raw_data_good_samples.lmiss"))
+callrate_snps_raw <- data.table::fread(file.path(temp_directory, "raw_data_good_samples.lmiss"))
 ```
 
 Proportion of missing genotypes or call rate per variant was estimated using the `--missing` command in PLINK.  
@@ -2112,7 +2068,7 @@ ggplot2::ggplot(
 callrate_snps <- callrate_snps_raw %>%
   dplyr::select(CHR, SNP, F_MISS) %>%
   dplyr::left_join(
-    y = data.table::fread(paste0(temp_directory, "/raw_data_good_samples.bim")) %>%
+    y = data.table::fread(file.path(temp_directory, "raw_data_good_samples.bim")) %>%
       dplyr::select(CHR = V1, SNP = V2, POS = V4),
     by = c("CHR" = "CHR", "SNP" = "SNP")
   ) %>%
@@ -2160,12 +2116,12 @@ lmendel_file_check <- params[["includes_relatives"]]
 ```{r lmendel-error-01, eval = params[["includes_relatives"]]}
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/raw_data_good_samples"), 
+  "--bfile", file.path(temp_directory, "raw_data_good_samples"), 
   "--mendel",
-  "--out ", paste0(temp_directory, "/raw_data_good_samples")
+  "--out ", file.path(temp_directory, "raw_data_good_samples")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
-lmendel_file_check <- file.exists(paste0(temp_directory, "/raw_data_good_samples.lmendel"))
+lmendel_file_check <- file.exists(file.path(temp_directory, "raw_data_good_samples.lmendel"))
 
 cat(
   "The variant-wise Mendel error was estimated using the `--mendel` command in PLINK.  \n",
@@ -2176,7 +2132,7 @@ cat(
 if (!lmendel_file_check) {
   cat("Mendel error rates check was not performed due to missing informations.\n\n")
 } else {
-  mendel_error_snps <- data.table::fread(paste0(temp_directory, "/raw_data_good_samples.lmendel")) %>%
+  mendel_error_snps <- data.table::fread(file.path(temp_directory, "raw_data_good_samples.lmendel")) %>%
     dplyr::mutate(percentage = N / dplyr::n()) %>%
     dplyr::arrange(percentage)
 }
@@ -2206,13 +2162,13 @@ if (lmendel_file_check) {
       dplyr::filter(mendel_error_snps, percentage > params[["mendelian_snp"]])[["SNP"]]
     ),
     sep = "\n", 
-    file = paste0(temp_directory, "/uniq_snps_list.txt")
+    file = file.path(temp_directory, "uniq_snps_list.txt")
   )
 } else {
   cat(
     uniq_snps[["SNP"]], 
     sep = "\n", 
-    file = paste0(temp_directory, "/uniq_snps_list.txt")
+    file = file.path(temp_directory, "uniq_snps_list.txt")
   )
 }
 ```
@@ -2225,15 +2181,15 @@ The MAF were computed using the `--freq` command in PLINK.
 ```{r maf-01, include = FALSE}
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/raw_data_good_samples"), 
-  "--extract", paste0(temp_directory, "/uniq_snps_list.txt"),
+  "--bfile", file.path(temp_directory, "raw_data_good_samples"), 
+  "--extract", file.path(temp_directory, "uniq_snps_list.txt"),
   "--freq",
-  "--out", paste0(temp_directory, "/raw_data_good_samples")
+  "--out", file.path(temp_directory, "raw_data_good_samples")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 ```
 
 ```{r maf-02, fig.cap = "Distribution of variants number per class of minor allele frequency (MAF)"}
-data.table::fread(paste0(temp_directory, "/raw_data_good_samples.frq")) %>%
+data.table::fread(file.path(temp_directory, "raw_data_good_samples.frq")) %>%
   dplyr::mutate(
     maf_dist = cut(MAF, breaks = c(0, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5), include.lowest = TRUE)
   ) %>% 
@@ -2255,12 +2211,12 @@ data.table::fread(paste0(temp_directory, "/raw_data_good_samples.frq")) %>%
 ```{r hwe-01, include = FALSE}
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/raw_data_good_samples"),
+  "--bfile", file.path(temp_directory, "raw_data_good_samples"),
   "--hardy", 
-  "--out ", paste0(temp_directory, "/raw_data_good_samples")
+  "--out ", file.path(temp_directory, "raw_data_good_samples")
 ), ignore.stdout = TRUE, ignore.stderr = TRUE)
 
-hwe_complete <- data.table::fread(paste0(temp_directory, "/raw_data_good_samples.hwe")) %>%
+hwe_complete <- data.table::fread(file.path(temp_directory, "raw_data_good_samples.hwe")) %>%
   tidyr::drop_na(P)
 
 hwe_significant <- hwe_complete %>%
@@ -2288,15 +2244,15 @@ ggplot2::ggplot(data = hwe_significant) +
 ```
 
 ```{r file-management, include = FALSE}
-imputation_filename <- paste0(temp_directory, "/", params[["cohort_name"]], "_forimputation")
+imputation_filename <- file.path(temp_directory, paste0(params[["cohort_name"]], "_forimputation"))
 
 system(command = paste(
   params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(temp_directory, "/raw_data"), 
+  "--bfile", file.path(temp_directory, "raw_data"), 
   "--set-hh-missing", 
-  "--remove", paste0(temp_directory, "/samples_excluded.txt"),
+  "--remove", file.path(temp_directory, "samples_excluded.txt"),
   "--geno", 1 - params[["callrate_snps"]],
-  "--extract", paste0(temp_directory, "/uniq_snps_list.txt"), 
+  "--extract", file.path(temp_directory, "uniq_snps_list.txt"), 
   "--hwe", params[["hwe_pvalue"]],
   "--make-bed", 
   "--out", paste0(imputation_filename, "_tmp1")
@@ -2341,7 +2297,7 @@ system(
   command = paste(
     paste(
       "(cd", temp_directory, ";",
-        gsub("plink", params[["bin_path"]][["plink"]], readLines(paste0(temp_directory, "/Run-plink.sh"))),
+        gsub("plink", params[["bin_path"]][["plink"]], readLines(file.path(temp_directory, "Run-plink.sh"))),
       ")"
     ),
     collapse = ";"
@@ -2352,7 +2308,7 @@ system(command = paste(
   params[["bin_path"]][["plink"]], 
   "--bfile", paste0(imputation_filename, "-updated"), 
   "--reference-allele", 
-      paste0(temp_directory, "/Force-Allele1-", params[["cohort_name"]], "_forimputation-1000G.txt"), 
+      file.path(temp_directory, paste0("Force-Allele1-", params[["cohort_name"]], "_forimputation-1000G.txt")), 
   "--recode vcf",
   "--out", imputation_filename
 ))
@@ -2371,12 +2327,12 @@ system(command = paste(
   params[["bin_path"]][["plink"]], 
   "--bfile", imputation_filename, 
   "--set-hh-missing", 
-  "--remove ", paste0(temp_directory, "/samples_excluded.txt"), 
+  "--remove ", file.path(temp_directory, "samples_excluded.txt"), 
   "--geno", 1 - params[["callrate_snps"]], 
-  "--extract", paste0(temp_directory, "/uniq_snps_list.txt"),
+  "--extract", file.path(temp_directory, "uniq_snps_list.txt"),
   "--hwe", params[["hwe_pvalue"]],
   "--make-bed", 
-  "--out", paste0(params[["output_directory"]], "/plink_qc/", params[["cohort_name"]], "_QC")
+  "--out", file.path(params[["output_directory"]], "plink_qc", paste0(params[["cohort_name"]], "_QC"))
 ))
 
 utils::write.table(
@@ -2396,7 +2352,7 @@ utils::write.table(
     ),
     .Names = c("V1", "V2"), class = "data.frame", row.names = c(NA, -26L)
   ),
-  file = paste0(temp_directory, "/plink2ensembl.txt"),
+  file = file.path(temp_directory, "plink2ensembl.txt"),
   row.names = FALSE, 
   col.names = FALSE, 
   quote = FALSE, 
@@ -2405,7 +2361,7 @@ utils::write.table(
 
 system(command = paste(
   params[["bin_path"]][["bcftools"]], "annotate", 
-  "--rename-chrs", paste0(temp_directory, "/plink2ensembl.txt"),
+  "--rename-chrs", file.path(temp_directory, "plink2ensembl.txt"),
   paste0(imputation_filename, ".vcf.gz"),
   "-Oz", 
   ">", paste0(imputation_filename, "-tmp.vcf.gz")
@@ -2414,7 +2370,7 @@ system(command = paste(
 system(command = paste(
   params[["bin_path"]][["bcftools"]], "+fixref", 
   paste0(imputation_filename, "-tmp.vcf.gz"), 
-  "-Ob -o", paste0(params[["output_directory"]], "/vcf_qc/", params[["cohort_name"]], "_QC.vcf.gz"),
+  "-Ob -o", file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz")),
   "--", 
   "-d", 
   "-f", params[["ref1kg_fasta"]], 
@@ -2425,13 +2381,13 @@ system(command = paste(
   params[["bin_path"]][["bcftools"]], "norm", 
   "--check-ref e", 
   "-f ", params[["ref1kg_fasta"]], 
-  paste0(params[["output_directory"]], "/vcf_qc/", params[["cohort_name"]], "_QC.vcf.gz"), 
+  file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz")), 
   "-o /dev/null"
 ))
 
 system(command = paste(
   params[["bin_path"]][["bcftools"]], "index", 
-  paste0(params[["output_directory"]], "/vcf_qc/", params[["cohort_name"]], "_QC.vcf.gz")
+  file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz"))
 ))
 ```
 
@@ -2441,22 +2397,22 @@ system(command = paste(
 
 ```{r qc-summary, include = FALSE}
 initial_snps_number <- nrow(data.table::fread(
-  input = paste0(params[["input_directory"]], ".bim"), 
+  input = paste0(params[["input_files"]], ".bim"), 
   select = 1
 ))
 
 final_snps_number <- nrow(data.table::fread(
-  input = paste0(params[["output_directory"]], "/plink_qc/", params[["cohort_name"]], "_QC.bim"), 
+  input = file.path(params[["output_directory"]], "plink_qc", paste0(params[["cohort_name"]], "_QC.bim")), 
   select = 1
 ))
 
 initial_samples_number <- nrow(data.table::fread(
-  input = paste0(params[["input_directory"]], ".fam"),
+  input = paste0(params[["input_files"]], ".fam"),
   select = 1
 ))
 
 final_samples_number <- nrow(data.table::fread(
-  input = paste0(params[["output_directory"]], "/plink_qc/", params[["cohort_name"]], "_QC.fam"), 
+  input = file.path(params[["output_directory"]], "plink_qc", paste0(params[["cohort_name"]], "_QC.fam")), 
   select = 1
 ))
 ```
@@ -2505,12 +2461,10 @@ recruit_centre %>%
     Excluded = Exclude, 
     Flagged = Check, 
     `Excluded or Flagged` = ExcludeorCheck
-  ) %>%
-  pretty_kable(
-    align = "c", 
-    table.attr = "style='width:65%;'",
-    caption = "Excluded samples and flagged samples per cohort."
-  )
+  ) %>% 
+  gt::gt(auto_align = "center") %>% 
+  gt::opt_row_striping() %>% 
+  gt::tab_header("Excluded samples and flagged samples per cohort.") 
 ```
 
 ```{r output-exclusion, include = FALSE}
@@ -2555,7 +2509,7 @@ if (nrow(not_target_population) != 0) {
   output_xlsx[["ethnicity"]] <- dplyr::select(not_target_population, FID, IID, ClosestPop)
 }
 
-writexl::write_xlsx(output_xlsx, path = paste0(params[["output_directory"]], "/QC_exclusion.xlsx"))
+writexl::write_xlsx(output_xlsx, path = file.path(params[["output_directory"]], "QC_exclusion.xlsx"))
 ```
 
 
@@ -2585,7 +2539,9 @@ bcftools_ver <- strsplit(
 check_bim_script_ver <- readLines(params[["check_bim_script"]], warn = FALSE) %>% 
   grep("^#", ., value = TRUE) %>% 
   grep("-v[0-9]", ., value = TRUE) %>% 
-  gsub("# *-", "", .) %>% 
+  gsub("# *-v", "", .) %>% 
+  gsub(" ", "", .) %>% 
+  package_version() %>% 
   sort(decreasing = TRUE) %>% 
   .[1]
 ```
