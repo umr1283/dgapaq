@@ -1633,7 +1633,8 @@ data_pca_plot <- data_pca %>%
     SUPER_POP = factor(SUPER_POP, levels = rev(levels(SUPER_POP))),
     Population = stats::relevel(x = factor(Population), ref = params[["cohort_name"]]),
     Population = factor(Population, levels = rev(levels(Population)))
-  )
+  ) %>% 
+  dplyr::filter(!is.na(Cohort))
 
 get_lims <- dplyr::filter(data_pca_plot, Population %in% params[["cohort_name"]])
 
@@ -1645,10 +1646,12 @@ p_superpop <- ggplot2::ggplot(
   ggplot2::geom_vline(xintercept = 0, linetype = 2) +
   ggplot2::geom_point(na.rm = TRUE) +
   ggforce::geom_mark_ellipse(
-    alpha = 0.1, 
-    con.cap = 0, 
-    con.border = "all", 
-    expand = ggplot2::unit(2, "mm")
+    data = ~ dplyr::filter(.x, SUPER_POP == params[["cohort_name"]]),
+    alpha = 0.1,
+    con.cap = 0,
+    con.border = "all",
+    expand = ggplot2::unit(2, "mm"), 
+    show.legend = FALSE
   ) +
   ggplot2::scale_colour_viridis_d(direction = -1) +
   ggplot2::scale_fill_viridis_d(direction = -1) +
@@ -1687,17 +1690,18 @@ data_pca_plot_closest <- data_pca_plot %>%
 
 p_pop <- ggplot2::ggplot(
   data = data_pca_plot_closest,
-  mapping = ggplot2::aes(x = x, y = y, colour = Population, shape = Population)
+  mapping = ggplot2::aes(x = x, y = y, colour = Population, shape = Population, fill = Population)
 ) +
   ggplot2::geom_hline(yintercept = 0, linetype = 2) +
   ggplot2::geom_vline(xintercept = 0, linetype = 2) +
   ggplot2::geom_point(na.rm = TRUE) +
   ggforce::geom_mark_ellipse(
-    mapping = ggplot2::aes(fill = Population, colour = Population),
+    data = ~ dplyr::filter(.x, Population == params[["cohort_name"]]),
     alpha = 0.1,
     con.cap = 0,
     con.border = "all",
-    expand = ggplot2::unit(2, "mm")
+    expand = ggplot2::unit(2, "mm"), 
+    show.legend = FALSE
   ) +
   ggplot2::scale_colour_viridis_d(direction = -1) +
   ggplot2::scale_fill_viridis_d(direction = -1) +
@@ -2284,7 +2288,7 @@ system(command = paste(
 
 system(command = paste(
   "(cd", temp_directory, "&&",
-    params[["check_bim_script"]],
+    "perl", params[["check_bim_script"]],
     "-b", paste0(imputation_filename, ".bim"),
     "-f", paste0(imputation_filename, ".frq"),
     "-r", params[["ref1kg_legend"]], 
