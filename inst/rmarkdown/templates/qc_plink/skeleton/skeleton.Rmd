@@ -1626,7 +1626,7 @@ data_pca_plot <- data_pca %>%
   dplyr::mutate(
     Population = ifelse(Population == "raw_data", Cohort, as.character(Population))
   ) %>% 
-  dplyr::mutate(pop1kg_description, by = c("Population" = "POP")) %>% 
+  dplyr::full_join(pop1kg_description, by = c("Population" = "POP")) %>% 
   dplyr::mutate(
     SUPER_POP = ifelse(is.na(SUPER_POP), Population, SUPER_POP),
     SUPER_POP = stats::relevel(x = factor(SUPER_POP), ref = params[["cohort_name"]]),
