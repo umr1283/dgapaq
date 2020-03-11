@@ -1,4 +1,4 @@
-# dgapaq (development version)
+# dgapaq 0.1.2
 
 ## Minor improvements and fixes
 
