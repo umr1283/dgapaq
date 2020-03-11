@@ -2400,20 +2400,34 @@ system(command = paste(
 # Final QC overview (with all filters)
 
 ```{r qc-summary, include = FALSE}
-initial_snps_number <- nrow(data.table::fread(
-  input = paste0(params[["input_files"]], ".bim"), 
-  select = 1
-))
+if (length(list.files(params[["input_files"]], pattern = ".bim")) != 0) {
+  initial_snps_number <- nrow(data.table::fread(
+    input = paste0(params[["input_files"]], ".bim"), 
+    select = 1
+  ))
+} else {
+  initial_snps_number <- nrow(data.table::fread(
+    input = paste0(params[["input_files"]], ".map"), 
+    select = 1
+  ))
+}
 
 final_snps_number <- nrow(data.table::fread(
   input = file.path(params[["output_directory"]], "plink_qc", paste0(params[["cohort_name"]], "_QC.bim")), 
   select = 1
 ))
 
-initial_samples_number <- nrow(data.table::fread(
-  input = paste0(params[["input_files"]], ".fam"),
-  select = 1
-))
+if (length(list.files(params[["input_files"]], pattern = ".bim")) != 0) {
+  initial_samples_number <- nrow(data.table::fread(
+    input = paste0(params[["input_files"]], ".fam"),
+    select = 1
+  ))
+} else {
+  initial_samples_number <- nrow(data.table::fread(
+    input = paste0(params[["input_files"]], ".ped"), 
+    select = 1
+  ))
+}
 
 final_samples_number <- nrow(data.table::fread(
   input = file.path(params[["output_directory"]], "plink_qc", paste0(params[["cohort_name"]], "_QC.fam")), 

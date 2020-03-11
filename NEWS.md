@@ -1,3 +1,10 @@
+# dgapaq (development version)
+
+## Minor improvements and fixes
+
+* Add `term::readkey` module in system requirement.
+* `qc_plink()` now also work on non-binary PLINK files (*i.e.*, `.map` and `.ped`).
+
 # dgapaq 0.1.1
 
 ## Minor improvements and fixes

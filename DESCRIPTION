@@ -1,6 +1,6 @@
 Package: dgapaq
 Title: DNA Genotyping Arrays Processing And Quality-Control
-Version: 0.1.1
+Version: 0.1.1.9000
 Authors@R: 
     c(person(given = "Mickaël",
              family = "Canouil",
@@ -54,4 +54,11 @@ Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.0.2
-SystemRequirements: pandoc (>= 1.12.3) - http://pandoc.org, bcftools, bgzip, plink1.9, gcta64, perl
+SystemRequirements: 
+    pandoc (>= 1.12.3) - http://pandoc.org, 
+    bcftools (>= 1.10.2), 
+    bgzip (>= 1.10.2), 
+    plink1.9 (>= 1.90), 
+    gcta64 (>= 1.92.3), 
+    perl (>= 5.24.1), 
+    libterm-readkey-perl (>= 2.37)
