@@ -4,6 +4,8 @@
 
 * Add `term::readkey` module in system requirement.
 * `qc_plink()` now also work on non-binary PLINK files (*i.e.*, `.map` and `.ped`).
+* Now imports `ggplot2 v3.3.0`.
+* Update all packages listed in `Imports`.
 
 # dgapaq 0.1.1
 
