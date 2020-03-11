@@ -277,7 +277,7 @@ for (ichr in c(1:22, "X")) {
     ggplot2::geom_text(vjust = -0.1) +
     ggplot2::scale_y_continuous(
       labels = scales::comma, 
-      expand = ggplot2::expand_scale(mult = c(0, 0.10))
+      expand = ggplot2::expansion(mult = c(0, 0.10))
     ) +
     ggplot2::labs(x = "Alternate allele frequency", y = "Count") +
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
@@ -311,7 +311,7 @@ for (ichr in c(1:22, "X")) {
     ggplot2::geom_text(vjust = -0.1) +
     ggplot2::scale_y_continuous(
       labels = scales::comma, 
-      expand = ggplot2::expand_scale(mult = c(0, 0.10))
+      expand = ggplot2::expansion(mult = c(0, 0.10))
     ) +
     ggplot2::labs(x = "INFO score", y = "Count") +
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
