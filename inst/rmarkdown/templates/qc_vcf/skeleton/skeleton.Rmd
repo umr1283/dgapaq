@@ -1,12 +1,4 @@
 ---
-title: '`r params[["title"]]`'
-author:
-- name: '`r params[["author_name"]]`'
-  affiliation: '`r params[["author_affiliation"]]`'
-  email: '`r params[["author_email"]]`'
-date: '`r format(Sys.time(), "%B %d, %Y")`'
-monofont: "Source Code Pro"
-monofontoptions: "Scale=0.7"
 params:
   input_directory: NULL
   output_directory: NULL
@@ -19,6 +11,12 @@ params:
   n_cores: 1
   dpi: 120
   gg_fontsize: 12
+title: '`r params[["title"]]`'
+author:
+- name: '`r params[["author_name"]]`'
+  affiliation: '`r params[["author_affiliation"]]`'
+  email: '`r params[["author_email"]]`'
+date: '`r format(Sys.time(), "%B %d, %Y")`'
 output:
   bookdown::html_document2:
     theme: simplex
