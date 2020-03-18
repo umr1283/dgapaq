@@ -2,7 +2,7 @@
 
 ## Minor improvements and fixes
 
-* Reorer YAML header in `qc_vcf()` [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd).
+* Reorder YAML header in `qc_vcf()` [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd).
 
 # dgapaq 0.1.2
 
