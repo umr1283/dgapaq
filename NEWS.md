@@ -3,6 +3,7 @@
 ## Minor improvements and fixes
 
 * Fix condition when be files are not available [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd).
+* Add the no read key version of [HRC perl script](inst/perl/HRC-1000G-check-bim-NoReadKey.pl).
 
 # dgapaq 0.1.3
 
