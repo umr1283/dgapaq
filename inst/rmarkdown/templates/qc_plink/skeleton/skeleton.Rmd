@@ -158,7 +158,7 @@ cat(
   file = file.path(params[["output_directory"]], "README.md")
 )
 
-if (length(list.files(params[["input_files"]], pattern = ".bed")) != 0) {
+if (length(list.files(dirname(params[["input_files"]]), pattern = ".bed")) != 0) {
   system(command = paste(
     params[["bin_path"]][["plink"]], 
     "--bfile", params[["input_files"]], 
