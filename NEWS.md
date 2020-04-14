@@ -1,3 +1,9 @@
+# dgapaq 0.1.4
+
+## Minor improvements and fixes
+
+* Fix condition when be files are not available [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd).
+
 # dgapaq 0.1.3
 
 ## Minor improvements and fixes
