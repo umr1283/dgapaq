@@ -20,16 +20,16 @@ params:
   population: NULL
   pca_components: 10
   pca_threshold: 3
-  check_bim_script: !r system.file("perl", "HRC-1000G-check-bim.pl", package = "dgapaq")
-  ref1kg_panel: NULL
-  ref1kg_population: NULL
+  check_bim_script: !r system.file("perl", "HRC-1000G-check-bim-NoReadKey.pl", package = "dgapaq")
+  imputation_ref: "1KG"
+  imputation_panel: "1000GP_Phase3_combined.legend"
+  ref1kg_panel: "integrated_call_samples_v3.20130502.ALL.panel"
+  ref1kg_population: "1kg_pop_description.tsv"
   ref1kg_genotypes: NULL
-  ref1kg_legend: NULL
-  ref1kg_fasta: NULL
-  bin_path: !r list(bcftools = "bcftools", bgzip = "bgzip", plink = "plink1.9", gcta = "gcta64")
+  bin_path: !r list(bcftools = "bcftools", bgzip = "bgzip", plink = "/usr/bin/plink1.9", gcta = "gcta64")
   cache: FALSE
   show_code: FALSE
-  n_cores: 1
+  n_cores: 22
   dpi: 120
   gg_fontsize: 12
 title: '`r params[["title"]]`'
@@ -986,7 +986,7 @@ related_samples <- relatedness %>%
   ) %>%
   dplyr::select(-F_MISS1, -F_MISS2) %>% 
   dplyr::arrange(dplyr::desc(PI_HAT))
-                 
+
 if (nrow(related_samples) != 0) {
   related_samples %>% 
     gt::gt(auto_align = "center") %>% 
@@ -1316,7 +1316,7 @@ raw_data_1kgenome_files <- t(sapply(
 list_1kgenome <- file.path(temp_directory, "1kgenome_small", "1kgenome_small_files.txt")
 
 utils::write.table(
-  x = raw_data_1kgenome_files,
+  x = raw_data_1kgenome_files[-1, ],
   file = list_1kgenome,
   col.names = FALSE, 
   row.names = FALSE, 
@@ -1604,7 +1604,7 @@ if (is.null(params[["population"]])) {
 not_target_population <- dplyr::mutate(not_target_population, QC = "Ethnicity")
 ```
 
-```{r population-03, fig.height = 4.7 * 1.5, fig.cap = paste("First factorial plane computed with a combined dataset", "involving samples from the 1,000 Genomes Project.", 'Samples in **A** were coloured by "super population" groups,', 'whereas samples in **B** were coloured by "population" groups', "and focused on the PCA area of the ", paste0("**", params[["cohort_name"]], "**"), "cohort.")}
+```{r population-03, fig.height = 4.7 * 1.5, fig.cap = paste("First factorial plane computed with a combined dataset", "involving samples from the 1,000 Genomes Project.", 'Samples were coloured by **A** "super population" and **B** "population" groups.')}
 data_pca_plot <- data_pca %>%
   dplyr::left_join(
     y = check_ethnicity %>%
@@ -1661,12 +1661,6 @@ p_superpop <- ggplot2::ggplot(
     colour = NULL, # "Super Population", 
     shape = NULL, # "Super Population", 
     fill = NULL # "Super Population"
-  ) +
-  ggforce::facet_zoom(
-    xlim = range(get_lims[["x"]]), 
-    ylim = range(get_lims[["y"]]),
-    zoom.size = 0.5,
-    horizontal = FALSE
   ) +
   ggplot2::theme(
     legend.position = "bottom", 
@@ -1736,21 +1730,6 @@ p_inertia <- inertia_pca %>%
   )
 
 ggpubr::ggarrange(
-  p_superpop, 
-  ggpubr::ggarrange(
-    p_pop, 
-    p_inertia, 
-    nrow = 2, 
-    labels = c("B", "C"), 
-    heights = c(2, 1)
-  ), 
-  ncol = 2, 
-  labels = c("A", "")
-)
-```
-
-```{r population-03-bis, fig.height = 4.7 * 1.5, fig.cap = paste("First factorial plane computed with a combined dataset", "involving samples from the 1,000 Genomes Project.", 'Samples were coloured by **A** "super population" and **B** "population" groups.')}
-ggpubr::ggarrange(
   p_superpop +
     ggplot2::facet_grid(cols = ggplot2::vars(Cohort)) +
     ggplot2::theme(legend.position = "top"),
@@ -1761,7 +1740,6 @@ ggpubr::ggarrange(
   labels = LETTERS
 )
 ```
-
 
 ```{r population-04, eval = !is.null(params[["population"]]) & nrow(not_target_population) > 0}
 samples_toexclude <- dplyr::bind_rows(
@@ -1866,7 +1844,7 @@ a PCA was performed using only samples from the cohort.
 Samples were labeled and flagged as being extreme when the distance from
 the **`r params[["cohort_name"]]`** cohort centroid was greater than
 `r qdap::replace_number(params[["pca_threshold"]])` times the standard deviation 
-of all distances (Figure \@ref(fig:population-06)).
+of all distances.
 
 Samples labeled and flagged as extreme: **`r scales::comma(sum(eigenvec_pca[["extremes"]]))`**
 
@@ -2281,54 +2259,6 @@ if (file.exists(paste0(imputation_filename, "_tmp1.hh"))) {
 system(command = paste(
   params[["bin_path"]][["plink"]], 
   "--bfile", imputation_filename, 
-  "--freq", 
-  "--out", imputation_filename
-))
-
-system(command = paste(
-  "(cd", temp_directory, "&&",
-    "perl", params[["check_bim_script"]],
-    "-b", paste0(imputation_filename, ".bim"),
-    "-f", paste0(imputation_filename, ".frq"),
-    "-r", params[["ref1kg_legend"]], 
-    "-g", 
-    "--pop ALL",
-  ")"
-))
-
-system(
-  command = paste(
-    paste(
-      "(cd", temp_directory, ";",
-        gsub("plink", params[["bin_path"]][["plink"]], readLines(file.path(temp_directory, "Run-plink.sh"))),
-      ")"
-    ),
-    collapse = ";"
-  )
-)
-
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", paste0(imputation_filename, "-updated"), 
-  "--reference-allele", 
-      file.path(temp_directory, paste0("Force-Allele1-", params[["cohort_name"]], "_forimputation-1000G.txt")), 
-  "--recode vcf",
-  "--out", imputation_filename
-))
-
-system(command = paste(
-  params[["bin_path"]][["bgzip"]], 
-  "-c", paste0(imputation_filename, ".vcf"), 
-  ">", paste0(imputation_filename, ".vcf.gz")
-))
-
-system(command = paste(
-  params[["bin_path"]][["bcftools"]], "index", paste0(imputation_filename, ".vcf.gz")
-))
-
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", imputation_filename, 
   "--set-hh-missing", 
   "--remove ", file.path(temp_directory, "samples_excluded.txt"), 
   "--geno", 1 - params[["callrate_snps"]], 
@@ -2336,6 +2266,79 @@ system(command = paste(
   "--hwe", params[["hwe_pvalue"]],
   "--make-bed", 
   "--out", file.path(params[["output_directory"]], "plink_qc", paste0(params[["cohort_name"]], "_QC"))
+))
+
+system(command = paste(
+  params[["bin_path"]][["plink"]], 
+  "--bfile", imputation_filename, 
+  "--freq", 
+  "--out", imputation_filename
+))
+
+if (params[["imputation_ref"]] == "HRC") {
+  system(command = paste(
+    "(cd", temp_directory, "&&",
+      "perl", params[["check_bim_script"]],
+      "-b", paste0(imputation_filename, ".bim"),
+      "-f", paste0(imputation_filename, ".frq"),
+      "-r", params[["imputation_panel"]], 
+      "-h",
+      "-l", params[["bin_path"]][["plink"]],
+    ")"
+  ))
+}
+
+if (params[["imputation_ref"]] == "1KG") {
+  system(command = paste(
+    "(cd", temp_directory, "&&",
+      "perl", params[["check_bim_script"]],
+      "-b", paste0(imputation_filename, ".bim"),
+      "-f", paste0(imputation_filename, ".frq"),
+      "-r", params[["imputation_ref"]], 
+      "-g", 
+      "--pop ALL",
+      "-l", params[["bin_path"]][["plink"]],
+    ")"
+  ))
+}
+
+system(paste(
+  "(cd", temp_directory, "; bash", file.path(temp_directory, "Run-plink.sh"), ")"
+))
+# system(command = paste(
+#   params[["bin_path"]][["plink"]], 
+#   "--bfile", paste0(imputation_filename, "-updated"), 
+#   "--recode vcf",
+#   "--out", imputation_filename
+# ))
+# system(command = paste(
+#   params[["bin_path"]][["bgzip"]], 
+#   "-c", paste0(imputation_filename, ".vcf"), 
+#   ">", paste0(imputation_filename, ".vcf.gz")
+# ))
+# system(command = paste(
+#   params[["bin_path"]][["bcftools"]], "index", paste0(imputation_filename, ".vcf.gz")
+# ))
+
+utils::write.table(
+  x = t(sapply(
+    X = sprintf(paste0(imputation_filename, "-updated-chr%d"), 2:23),
+    FUN = paste0, c(".bed", ".bim", ".fam"),
+    simplify = TRUE,
+    USE.NAMES = FALSE
+  )),
+  file = file.path(temp_directory, paste0(params[["cohort_name"]], "_forimputation.txt")),
+  col.names = FALSE,
+  row.names = FALSE,
+  quote = FALSE
+)
+
+system(command = paste(
+  params[["bin_path"]][["plink"]],
+  "--bfile", sprintf(paste0(imputation_filename, "-updated-chr%d"), 1),
+  "--merge-list", file.path(temp_directory, paste0(params[["cohort_name"]], "_forimputation.txt")),
+  "--recode vcf",
+  "--out", imputation_filename
 ))
 
 utils::write.table(
@@ -2367,25 +2370,7 @@ system(command = paste(
   "--rename-chrs", file.path(temp_directory, "plink2ensembl.txt"),
   paste0(imputation_filename, ".vcf.gz"),
   "-Oz", 
-  ">", paste0(imputation_filename, "-tmp.vcf.gz")
-))
-
-system(command = paste(
-  params[["bin_path"]][["bcftools"]], "+fixref", 
-  paste0(imputation_filename, "-tmp.vcf.gz"), 
-  "-Ob -o", file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz")),
-  "--", 
-  "-d", 
-  "-f", params[["ref1kg_fasta"]], 
-  "-m flip"
-))
-
-system(command = paste(
-  params[["bin_path"]][["bcftools"]], "norm", 
-  "--check-ref e", 
-  "-f ", params[["ref1kg_fasta"]], 
-  file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz")), 
-  "-o /dev/null"
+  ">", file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz"))
 ))
 
 system(command = paste(
@@ -2399,7 +2384,7 @@ system(command = paste(
 # Final QC overview (with all filters)
 
 ```{r qc-summary, include = FALSE}
-if (length(list.files(params[["input_files"]], pattern = ".bim")) != 0) {
+if (file.exists(paste0(params[["input_files"]], ".bim"))) {
   initial_snps_number <- nrow(data.table::fread(
     input = paste0(params[["input_files"]], ".bim"), 
     select = 1
@@ -2416,7 +2401,7 @@ final_snps_number <- nrow(data.table::fread(
   select = 1
 ))
 
-if (length(list.files(params[["input_files"]], pattern = ".bim")) != 0) {
+if (file.exists(paste0(params[["input_files"]], ".fam"))) {
   initial_samples_number <- nrow(data.table::fread(
     input = paste0(params[["input_files"]], ".fam"),
     select = 1
@@ -2527,6 +2512,7 @@ if (nrow(not_target_population) != 0) {
 }
 
 writexl::write_xlsx(output_xlsx, path = file.path(params[["output_directory"]], "QC_exclusion.xlsx"))
+unlink(temp_directory, recursive = TRUE)
 ```
 
 
