@@ -1,3 +1,9 @@
+# dgapaq 0.1.5
+
+## Minor improvements and fixes
+
+* Fix merge of files after check against reference panel [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd)
+
 # dgapaq 0.1.4
 
 ## Minor improvements and fixes

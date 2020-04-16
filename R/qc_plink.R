@@ -41,9 +41,8 @@
 #'     Default is `NULL`.
 #' @param ref1kg_genotypes A `character`. The PLINK files from 1,000 Genome project.
 #'     Default is `NULL`.
-#' @param ref1kg_legend A `character`. The `*.legend` file from 1,000 Genome project.
-#'     Default is `NULL`.
-#' @param ref1kg_fasta A `character`. The `*.fasta` file from 1,000 Genome project.
+#' @param imputation_ref A `character` giving the imputation panel to check against, *e.g.*, `1KG` or `HRC`.
+#' @param imputation_panel A `character`. The `*.legend` file from 1,000 Genome project or `*tab` file from HRC.
 #'     Default is `NULL`.
 #' @param bin_path A `list(character)`. A list giving the binary path of `bcftools`, `bgzip`, `gcta` and `plink1.9`.
 #' @param title A `character`. The report's title. Default is `paste(array, "Array Quality-Control")`.
@@ -112,11 +111,11 @@ qc_plink <- function(
   pca_components = 10,
   pca_threshold = 3,
   check_bim_script = system.file("perl", "HRC-1000G-check-bim.pl", package = "dgapaq"),
-  ref1kg_panel = NULL,
-  ref1kg_population = NULL,
+  ref1kg_panel = "integrated_call_samples_v3.20130502.ALL.panel",
+  ref1kg_population = "1kg_pop_description.tsv",
   ref1kg_genotypes = NULL,
-  ref1kg_legend = NULL,
-  ref1kg_fasta = NULL,
+  imputation_ref = "1KG",
+  imputation_panel = "1000GP_Phase3_combined.legend",
   bin_path = list(
     bcftools = "/usr/bin/bcftools",
     bgzip = "/usr/bin/bgzip",
@@ -173,7 +172,8 @@ qc_plink <- function(
       ref1kg_population = ref1kg_population,
       ref1kg_genotypes = ref1kg_genotypes,
       ref1kg_legend = ref1kg_legend,
-      ref1kg_fasta = ref1kg_fasta,
+      imputation_ref = imputation_ref,
+      imputation_panel = imputation_panel,
       bin_path = bin_path,
       title = title,
       author_name = author_name,
