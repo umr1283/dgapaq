@@ -1,3 +1,9 @@
+# dgapaq 0.1.7
+
+## Minor improvements and fixes
+
+* Add missing new line in summary [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd).
+
 # dgapaq 0.1.6
 
 ## Minor improvements and fixes
