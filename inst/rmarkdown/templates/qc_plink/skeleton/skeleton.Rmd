@@ -2294,7 +2294,7 @@ if (params[["imputation_ref"]] == "1KG") {
       "perl", params[["check_bim_script"]],
       "-b", paste0(imputation_filename, ".bim"),
       "-f", paste0(imputation_filename, ".frq"),
-      "-r", params[["imputation_ref"]], 
+      "-r", params[["imputation_panel"]], 
       "-g", 
       "--pop ALL",
       "-l", params[["bin_path"]][["plink"]],
@@ -2302,23 +2302,7 @@ if (params[["imputation_ref"]] == "1KG") {
   ))
 }
 
-system(paste(
-  "(cd", temp_directory, "; bash", file.path(temp_directory, "Run-plink.sh"), ")"
-))
-# system(command = paste(
-#   params[["bin_path"]][["plink"]], 
-#   "--bfile", paste0(imputation_filename, "-updated"), 
-#   "--recode vcf",
-#   "--out", imputation_filename
-# ))
-# system(command = paste(
-#   params[["bin_path"]][["bgzip"]], 
-#   "-c", paste0(imputation_filename, ".vcf"), 
-#   ">", paste0(imputation_filename, ".vcf.gz")
-# ))
-# system(command = paste(
-#   params[["bin_path"]][["bcftools"]], "index", paste0(imputation_filename, ".vcf.gz")
-# ))
+system(paste("cd", temp_directory, "&& bash Run-plink.sh"))
 
 utils::write.table(
   x = t(sapply(
@@ -2339,6 +2323,15 @@ system(command = paste(
   "--merge-list", file.path(temp_directory, paste0(params[["cohort_name"]], "_forimputation.txt")),
   "--recode vcf",
   "--out", imputation_filename
+))
+
+system(command = paste(
+  params[["bin_path"]][["bgzip"]], 
+  "-c", paste0(imputation_filename, ".vcf"),
+  ">", paste0(imputation_filename, ".vcf.gz")
+))
+system(command = paste(
+  params[["bin_path"]][["bcftools"]], "index", paste0(imputation_filename, ".vcf.gz")
 ))
 
 utils::write.table(
@@ -2417,6 +2410,9 @@ final_samples_number <- nrow(data.table::fread(
   input = file.path(params[["output_directory"]], "plink_qc", paste0(params[["cohort_name"]], "_QC.fam")), 
   select = 1
 ))
+
+final_snps_imputation <- nrow(data.table::fread(paste0(imputation_filename, ".bim"), select = 1))
+final_samples_imputation <- nrow(data.table::fread(paste0(imputation_filename, ".fam"), select = 1))
 ```
 
 * Samples previously characterised in Section [Sample-based QC](#sample-qc):
@@ -2434,6 +2430,8 @@ The initial dataset included **`r scales::comma(initial_samples_number)`** sampl
 and **`r scales::comma(initial_snps_number)`** variants.  
 The final dataset includes **`r scales::comma(final_samples_number)`** samples 
 and **`r scales::comma(final_snps_number)`** variants.
+The imputation dataset includes **`r scales::comma(final_samples_imputation)`** samples 
+and **`r scales::comma(final_snps_imputation)`** variants.
 
 ```{r qc-summary-table}
 recruit_centre %>%

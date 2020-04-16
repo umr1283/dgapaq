@@ -1,8 +1,14 @@
+# dgapaq 0.1.6
+
+## Minor improvements and fixes
+
+* Fix combined vcf files not created [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd).
+
 # dgapaq 0.1.5
 
 ## Minor improvements and fixes
 
-* Fix merge of files after check against reference panel [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd)
+* Fix merge of files after check against reference panel [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd).
 
 # dgapaq 0.1.4
 
