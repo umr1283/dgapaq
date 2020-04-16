@@ -2429,7 +2429,7 @@ final_samples_imputation <- nrow(data.table::fread(paste0(imputation_filename, "
 The initial dataset included **`r scales::comma(initial_samples_number)`** samples 
 and **`r scales::comma(initial_snps_number)`** variants.  
 The final dataset includes **`r scales::comma(final_samples_number)`** samples 
-and **`r scales::comma(final_snps_number)`** variants.
+and **`r scales::comma(final_snps_number)`** variants.  
 The imputation dataset includes **`r scales::comma(final_samples_imputation)`** samples 
 and **`r scales::comma(final_snps_imputation)`** variants.
 
