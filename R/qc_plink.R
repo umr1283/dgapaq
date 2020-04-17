@@ -37,6 +37,8 @@
 #'     Default is `system.file("perl", "HRC-1000G-check-bim.pl", package = "dgapaq")`.
 #' @param ref1kg_panel A `character`. The `*.panel` file from 1,000 Genome project.
 #'     Default is `NULL`.
+#' @param ref1kg_fasta A `character`. The `*.fasta` file from 1,000 Genome project.
+#'     Default is `NULL`.
 #' @param ref1kg_population A `character`. The `*.tsv` file from 1,000 Genome project describing samples and ethnicity.
 #'     Default is `NULL`.
 #' @param ref1kg_genotypes A `character`. The PLINK files from 1,000 Genome project.
@@ -112,6 +114,7 @@ qc_plink <- function(
   pca_threshold = 3,
   check_bim_script = system.file("perl", "HRC-1000G-check-bim.pl", package = "dgapaq"),
   ref1kg_panel = "integrated_call_samples_v3.20130502.ALL.panel",
+  ref1kg_fasta = NULL,
   ref1kg_population = "1kg_pop_description.tsv",
   ref1kg_genotypes = NULL,
   imputation_ref = "1KG",
@@ -169,9 +172,9 @@ qc_plink <- function(
       pca_threshold = pca_threshold,
       check_bim_script = check_bim_script,
       ref1kg_panel = ref1kg_panel,
+      ref1kg_fasta = ref1kg_fasta,
       ref1kg_population = ref1kg_population,
       ref1kg_genotypes = ref1kg_genotypes,
-      ref1kg_legend = ref1kg_legend,
       imputation_ref = imputation_ref,
       imputation_panel = imputation_panel,
       bin_path = bin_path,

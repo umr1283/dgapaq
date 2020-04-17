@@ -1,3 +1,9 @@
+# dgapaq 0.1.8
+
+## Minor improvements and fixes
+
+* Fix issue with reference allele [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd).
+
 # dgapaq 0.1.7
 
 ## Minor improvements and fixes

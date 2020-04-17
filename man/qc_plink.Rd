@@ -23,11 +23,12 @@ qc_plink(
   pca_components = 10,
   pca_threshold = 3,
   check_bim_script = system.file("perl", "HRC-1000G-check-bim.pl", package = "dgapaq"),
-  ref1kg_panel = NULL,
-  ref1kg_population = NULL,
-  ref1kg_genotypes = NULL,
-  ref1kg_legend = NULL,
+  ref1kg_panel = "integrated_call_samples_v3.20130502.ALL.panel",
   ref1kg_fasta = NULL,
+  ref1kg_population = "1kg_pop_description.tsv",
+  ref1kg_genotypes = NULL,
+  imputation_ref = "1KG",
+  imputation_panel = "1000GP_Phase3_combined.legend",
   bin_path = list(bcftools = "/usr/bin/bcftools", bgzip = "/usr/bin/bgzip", plink =
     "/usr/bin/plink1.9", gcta = "/usr/bin/gcta64"),
   title = paste(array, "Array Quality-Control"),
@@ -100,16 +101,18 @@ Default is \code{system.file("perl", "HRC-1000G-check-bim.pl", package = "dgapaq
 \item{ref1kg_panel}{A \code{character}. The \verb{*.panel} file from 1,000 Genome project.
 Default is \code{NULL}.}
 
+\item{ref1kg_fasta}{A \code{character}. The \verb{*.fasta} file from 1,000 Genome project.
+Default is \code{NULL}.}
+
 \item{ref1kg_population}{A \code{character}. The \verb{*.tsv} file from 1,000 Genome project describing samples and ethnicity.
 Default is \code{NULL}.}
 
 \item{ref1kg_genotypes}{A \code{character}. The PLINK files from 1,000 Genome project.
 Default is \code{NULL}.}
 
-\item{ref1kg_legend}{A \code{character}. The \verb{*.legend} file from 1,000 Genome project.
-Default is \code{NULL}.}
+\item{imputation_ref}{A \code{character} giving the imputation panel to check against, \emph{e.g.}, \verb{1KG} or \code{HRC}.}
 
-\item{ref1kg_fasta}{A \code{character}. The \verb{*.fasta} file from 1,000 Genome project.
+\item{imputation_panel}{A \code{character}. The \verb{*.legend} file from 1,000 Genome project or \verb{*tab} file from HRC.
 Default is \code{NULL}.}
 
 \item{bin_path}{A \code{list(character)}. A list giving the binary path of \code{bcftools}, \code{bgzip}, \code{gcta} and \code{plink1.9}.}
