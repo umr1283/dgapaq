@@ -25,7 +25,7 @@ qc_plink(
   check_bim_script = system.file("perl", "HRC-1000G-check-bim.pl", package = "dgapaq"),
   ref1kg_panel = "integrated_call_samples_v3.20130502.ALL.panel",
   ref1kg_fasta = NULL,
-  ref1kg_population = "1kg_pop_description.tsv",
+  ref1kg_population = "20131219.populations.tsv",
   ref1kg_genotypes = NULL,
   imputation_ref = "1KG",
   imputation_panel = "1000GP_Phase3_combined.legend",
@@ -96,24 +96,30 @@ the as number of standard deviation from the cohort centroid.
 Default is \code{3}.}
 
 \item{check_bim_script}{A \code{character}. The PERL script to use to check PLINK files to allow later imputation.
-Default is \code{system.file("perl", "HRC-1000G-check-bim.pl", package = "dgapaq")}.}
+Default is \code{system.file("perl", "HRC-1000G-check-bim.pl", package = "dgapaq")}.
+Script from https://www.well.ox.ac.uk/~wrayner/tools/.}
 
 \item{ref1kg_panel}{A \code{character}. The \verb{*.panel} file from 1,000 Genome project.
-Default is \code{NULL}.}
+Default is \code{"integrated_call_samples_v3.20130502.ALL.panel"}.
+\code{integrated_call_samples_v3.20130502.ALL.panel} can be downloaded from
+ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/.}
 
 \item{ref1kg_fasta}{A \code{character}. The \verb{*.fasta} file from 1,000 Genome project.
 Default is \code{NULL}.}
 
 \item{ref1kg_population}{A \code{character}. The \verb{*.tsv} file from 1,000 Genome project describing samples and ethnicity.
-Default is \code{NULL}.}
+Default is \code{"20131219.populations.tsv"}.
+The \verb{*.tsv} file can be downloaded from ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/phase3/20131219.populations.tsv.}
 
 \item{ref1kg_genotypes}{A \code{character}. The PLINK files from 1,000 Genome project.
-Default is \code{NULL}.}
+Default is \code{NULL}.
+\verb{*vcf} files can be downloaded from ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/.}
 
-\item{imputation_ref}{A \code{character} giving the imputation panel to check against, \emph{e.g.}, \verb{1KG} or \code{HRC}.}
+\item{imputation_ref}{A \code{character} giving the imputation panel to check against, \emph{e.g.}, \verb{1KG} (default) or \code{HRC}.}
 
-\item{imputation_panel}{A \code{character}. The \verb{*.legend} file from 1,000 Genome project or \verb{*tab} file from HRC.
-Default is \code{NULL}.}
+\item{imputation_panel}{A \code{character}. The \verb{*.legend} file from 1,000 Genome project or \verb{*.tab} file from HRC.
+Default is \code{"1000GP_Phase3_combined.legend"}.
+\verb{*.legend} file can be downloaded from https://www.well.ox.ac.uk/~wrayner/tools/1000GP_Phase3_combined.legend.gz.}
 
 \item{bin_path}{A \code{list(character)}. A list giving the binary path of \code{bcftools}, \code{bgzip}, \code{gcta} and \code{plink1.9}.}
 
