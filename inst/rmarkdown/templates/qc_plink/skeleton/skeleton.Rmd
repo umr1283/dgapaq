@@ -25,7 +25,7 @@ params:
   imputation_panel: "1000GP_Phase3_combined.legend"
   ref1kg_panel: "integrated_call_samples_v3.20130502.ALL.panel"
   ref1kg_fasta: NULL
-  ref1kg_population: "1kg_pop_description.tsv"
+  ref1kg_population: "20131219.populations.tsv"
   ref1kg_genotypes: NULL
   bin_path: !r list(bcftools = "bcftools", bgzip = "bgzip", plink = "/usr/bin/plink1.9", gcta = "gcta64")
   cache: FALSE
@@ -2359,39 +2359,52 @@ utils::write.table(
   sep = "\t"
 )
 
-system(command = paste(
-  params[["bin_path"]][["bcftools"]], "annotate", 
-  "--rename-chrs", file.path(temp_directory, "plink2ensembl.txt"),
-  paste0(imputation_filename, ".vcf.gz"),
-  "-Oz", 
-  ">", file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC_tmp.vcf.gz"))
-))
-
-system(command = paste(
-  params[["bin_path"]][["bcftools"]], "index", 
-  file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC_tmp.vcf.gz"))
-))
-
-system(command = paste(
-  params[["bin_path"]][["bcftools"]], "+fixref", 
-  file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC_tmp.vcf.gz")), 
-  "-Ob -o", file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz")),
-  "--", 
-  "-d", 
-  "-f", params[["ref1kg_fasta"]], 
-  "-m flip"
-))
-system(command = paste(
-  params[["bin_path"]][["bcftools"]], "norm", 
-  "--check-ref e", 
-  "-f ", params[["ref1kg_fasta"]], 
-  file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz")), 
-  "-o /dev/null"
-))
-system(command = paste(
-  params[["bin_path"]][["bcftools"]], "index", 
-  file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz"))
-))
+if (is.null(params[["ref1kg_fasta"]])) {
+  system(command = paste(
+    params[["bin_path"]][["bcftools"]], "annotate", 
+    "--rename-chrs", file.path(temp_directory, "plink2ensembl.txt"),
+    paste0(imputation_filename, ".vcf.gz"),
+    "-Oz", 
+    ">", file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC_tmp.vcf.gz"))
+  ))
+  system(command = paste(
+    params[["bin_path"]][["bcftools"]], "index", 
+    file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC_tmp.vcf.gz"))
+  ))
+  system(command = paste(
+    params[["bin_path"]][["bcftools"]], "+fixref", 
+    file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC_tmp.vcf.gz")), 
+    "-Ob -o", file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz")),
+    "--", 
+    "-d", 
+    "-f", params[["ref1kg_fasta"]], 
+    "-m flip"
+  ))
+  system(command = paste(
+    params[["bin_path"]][["bcftools"]], "norm", 
+    "--check-ref e", 
+    "-f ", params[["ref1kg_fasta"]], 
+    file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz")), 
+    "-o /dev/null"
+  ))
+  system(command = paste(
+    params[["bin_path"]][["bcftools"]], "index", 
+    file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz"))
+  ))
+} else {
+  system(command = paste(
+    params[["bin_path"]][["bcftools"]], "annotate", 
+    "--rename-chrs", file.path(temp_directory, "plink2ensembl.txt"),
+    paste0(imputation_filename, ".vcf.gz"),
+    "-Oz", 
+    ">", file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz"))
+  ))
+  
+  system(command = paste(
+    params[["bin_path"]][["bcftools"]], "index", 
+    file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz"))
+  ))
+}
 
 unlink(file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC_tmp.vcf.gz")))
 unlink(file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC_tmp.vcf.gz.csi")))
