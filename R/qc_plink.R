@@ -35,17 +35,23 @@
 #'     Default is `3`.
 #' @param check_bim_script A `character`. The PERL script to use to check PLINK files to allow later imputation.
 #'     Default is `system.file("perl", "HRC-1000G-check-bim.pl", package = "dgapaq")`.
+#'     Script from https://www.well.ox.ac.uk/~wrayner/tools/.
 #' @param ref1kg_panel A `character`. The `*.panel` file from 1,000 Genome project.
-#'     Default is `NULL`.
+#'     Default is `"integrated_call_samples_v3.20130502.ALL.panel"`.
+#'     `integrated_call_samples_v3.20130502.ALL.panel` can be downloaded from
+#'     ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/.
 #' @param ref1kg_fasta A `character`. The `*.fasta` file from 1,000 Genome project.
 #'     Default is `NULL`.
 #' @param ref1kg_population A `character`. The `*.tsv` file from 1,000 Genome project describing samples and ethnicity.
-#'     Default is `NULL`.
+#'     Default is `"20131219.populations.tsv"`.
+#'     The `*.tsv` file can be downloaded from ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/phase3/20131219.populations.tsv.
 #' @param ref1kg_genotypes A `character`. The PLINK files from 1,000 Genome project.
 #'     Default is `NULL`.
-#' @param imputation_ref A `character` giving the imputation panel to check against, *e.g.*, `1KG` or `HRC`.
-#' @param imputation_panel A `character`. The `*.legend` file from 1,000 Genome project or `*tab` file from HRC.
-#'     Default is `NULL`.
+#'     `*vcf` files can be downloaded from ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/.
+#' @param imputation_ref A `character` giving the imputation panel to check against, *e.g.*, `1KG` (default) or `HRC`.
+#' @param imputation_panel A `character`. The `*.legend` file from 1,000 Genome project or `*.tab` file from HRC.
+#'     Default is `"1000GP_Phase3_combined.legend"`.
+#'     `*.legend` file can be downloaded from https://www.well.ox.ac.uk/~wrayner/tools/1000GP_Phase3_combined.legend.gz.
 #' @param bin_path A `list(character)`. A list giving the binary path of `bcftools`, `bgzip`, `gcta` and `plink1.9`.
 #' @param title A `character`. The report's title. Default is `paste(array, "Array Quality-Control")`.
 #' @param author_name A `character`. The author's name to be printed in the report.
@@ -115,7 +121,7 @@ qc_plink <- function(
   check_bim_script = system.file("perl", "HRC-1000G-check-bim.pl", package = "dgapaq"),
   ref1kg_panel = "integrated_call_samples_v3.20130502.ALL.panel",
   ref1kg_fasta = NULL,
-  ref1kg_population = "1kg_pop_description.tsv",
+  ref1kg_population = "20131219.populations.tsv",
   ref1kg_genotypes = NULL,
   imputation_ref = "1KG",
   imputation_panel = "1000GP_Phase3_combined.legend",
