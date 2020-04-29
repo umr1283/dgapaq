@@ -1,39 +1,54 @@
+# dgapaq 0.1.9
+
+## Minor improvements and fixes
+
+* In [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd),
+  + Add condition when no fasta file is provided.
+* In `R/qc_vcf.R`, 
+  + Add filenames and URLs to download needed files.
+
 # dgapaq 0.1.8
 
 ## Minor improvements and fixes
 
-* Fix issue with reference allele [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd).
+* In [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd),
+  + Fix issue with reference allele.
 
 # dgapaq 0.1.7
 
 ## Minor improvements and fixes
 
-* Add missing new line in summary [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd).
+* In [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd),
+  + Add missing new line in summary.
 
 # dgapaq 0.1.6
 
 ## Minor improvements and fixes
 
-* Fix combined vcf files not created [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd).
+* In [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd),
+  + Fix combined vcf files not created.
 
 # dgapaq 0.1.5
 
 ## Minor improvements and fixes
 
-* Fix merge of files after check against reference panel [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd).
+* In [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd),
+  + Fix merge of files after check against reference panel.
 
 # dgapaq 0.1.4
 
 ## Minor improvements and fixes
 
-* Fix condition when be files are not available [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd).
+* In [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd),
+  + Fix condition when be files are not available.
 * Add the no read key version of [HRC perl script](inst/perl/HRC-1000G-check-bim-NoReadKey.pl).
 
 # dgapaq 0.1.3
 
 ## Minor improvements and fixes
 
-* Reorder YAML header in `qc_vcf()` [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd).
+* In [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd),
+  + Reorder YAML header in `qc_vcf()`.
 
 # dgapaq 0.1.2
 
