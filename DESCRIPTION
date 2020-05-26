@@ -60,5 +60,4 @@ SystemRequirements:
     bgzip (>= 1.10.2), 
     plink1.9 (>= 1.90), 
     gcta64 (>= 1.92.3), 
-    perl (>= 5.24.1), 
-    libterm-readkey-perl (>= 2.37)
+    perl (>= 5.24.1)
