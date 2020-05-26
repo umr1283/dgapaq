@@ -4,13 +4,13 @@ params:
   author_name: "Firstname Lastname"
   author_affiliation: "Institution"
   author_email: "some@email.com"
-  input_directory: NULL
+  input_files: NULL
   output_directory: NULL
   cohort_name: NULL
   array: NULL
   callrate_samples: 0.95
   callrate_snps: 0.95
-  heterozygosity_treshold: 4
+  heterozygosity_threshold: 4
   maf_threshold: 0.01
   hwe_pvalue: 0.0001
   includes_relatives: FALSE
@@ -193,7 +193,7 @@ if (length(list.files(dirname(params[["input_files"]]), pattern = ".bed")) != 0)
 * Variant-based call rate threshold: 
     `` `r params[["callrate_snps"]]` ``
 * Number of standard deviations (SD) from the mean heterozygosity rate: 
-    `` `r params[["heterozygosity_treshold"]]` ``
+    `` `r params[["heterozygosity_threshold"]]` ``
 * Proportion of identity by descent (IBD) threshold: 
     `` `r params[["IBD_threshold"]]` ``
 * Number of components from the principal component analysis (PCA): 
@@ -622,8 +622,8 @@ heterozygosity <- data.table::fread(file.path(temp_directory, "raw_data_auto.het
       ), 
       labs = ifelse(
         test = F_MISS < 1 - params[["callrate_samples"]] & ( 
-          hrate > mean(hrate) + stats::sd(hrate * params[["heterozygosity_treshold"]]) | 
-            hrate < mean(hrate) - stats::sd(hrate * params[["heterozygosity_treshold"]])
+          hrate > mean(hrate) + stats::sd(hrate * params[["heterozygosity_threshold"]]) | 
+            hrate < mean(hrate) - stats::sd(hrate * params[["heterozygosity_threshold"]])
         ), 
         yes = IID, 
         no = NA
@@ -644,8 +644,8 @@ if (is_maf_lower) {
         colour = sqrt((hrate - mean(hrate, na.rm = TRUE))^2 + (F_MISS - mean(F_MISS, na.rm = TRUE))^2), 
         labs = ifelse(
           test = F_MISS < 1 - params[["callrate_samples"]] & ( 
-            hrate > mean(hrate) + stats::sd(hrate * params[["heterozygosity_treshold"]]) | 
-              hrate < mean(hrate) - stats::sd(hrate * params[["heterozygosity_treshold"]])
+            hrate > mean(hrate) + stats::sd(hrate * params[["heterozygosity_threshold"]]) | 
+              hrate < mean(hrate) - stats::sd(hrate * params[["heterozygosity_threshold"]])
           ), 
           yes = IID, 
           no = NA
@@ -692,7 +692,7 @@ p_heteR <- ggplot2::ggplot(
     data = dplyr::filter(heterozygosity, F_MISS < 1 - params[["callrate_samples"]]),
     mapping = ggplot2::aes(
       yintercept = mean(hrate, na.rm = TRUE) - 
-        stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_treshold"]]
+        stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_threshold"]]
     ),
     colour = "firebrick2", 
     linetype = 2
@@ -701,7 +701,7 @@ p_heteR <- ggplot2::ggplot(
     data = dplyr::filter(heterozygosity, F_MISS < 1 - params[["callrate_samples"]]),
     mapping = ggplot2::aes(
       yintercept = mean(hrate, na.rm = TRUE) + 
-        stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_treshold"]]
+        stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_threshold"]]
     ),
     colour = "firebrick2", 
     linetype = 2
@@ -745,7 +745,7 @@ if (is_maf_lower) {
       data = dplyr::filter(heterozygosity_maf_lower, F_MISS < 1 - params[["callrate_samples"]]),
       mapping = ggplot2::aes(
         yintercept = mean(hrate, na.rm = TRUE) - 
-          stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_treshold"]]
+          stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_threshold"]]
       ),
       colour = "firebrick2", 
       linetype = 2
@@ -754,7 +754,7 @@ if (is_maf_lower) {
       data = dplyr::filter(heterozygosity_maf_lower, F_MISS < 1 - params[["callrate_samples"]]),
       mapping = ggplot2::aes(
         yintercept = mean(hrate, na.rm = TRUE) + 
-          stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_treshold"]]
+          stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_threshold"]]
       ),
       colour = "firebrick2", 
       linetype = 2
@@ -822,7 +822,7 @@ if (is_maf_lower) {
 }
 ```
 
-```{r heterozygosity-05, fig.height = 4.7 * 1.5, fig.cap = paste0("Heterozygosity rate against the call rate per sample. ", "A and C, the heterozygosity rate computed based on all variants. ", "B and D, the heterozygosity estimated from variants with a MAF < ", params[["maf_threshold"]], ". ", "The horizontal red lines denote the ", qdap::replace_number(params[["heterozygosity_treshold"]]), " times standard deviations (SD) from the mean heterozygosity rate ", "and were used to define outlying heterozygosity.", " SD was computed only on samples with a call rate greater than or equal to ", scales::percent(params[["callrate_samples"]], accuracy = 0.01), ".")}
+```{r heterozygosity-05, fig.height = 4.7 * 1.5, fig.cap = paste0("Heterozygosity rate against the call rate per sample. ", "A and C, the heterozygosity rate computed based on all variants. ", "B and D, the heterozygosity estimated from variants with a MAF < ", params[["maf_threshold"]], ". ", "The horizontal red lines denote the ", qdap::replace_number(params[["heterozygosity_threshold"]]), " times standard deviations (SD) from the mean heterozygosity rate ", "and were used to define outlying heterozygosity.", " SD was computed only on samples with a call rate greater than or equal to ", scales::percent(params[["callrate_samples"]], accuracy = 0.01), ".")}
 ggpubr::ggarrange(
   p_heteR + 
     ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 0.01)) +
@@ -844,9 +844,9 @@ ggpubr::ggarrange(
             (function(x) {
               c(
                 mean(x, na.rm = TRUE) + 
-                  stats::sd(x, na.rm = TRUE) * params[["heterozygosity_treshold"]],
+                  stats::sd(x, na.rm = TRUE) * params[["heterozygosity_threshold"]],
                 mean(x, na.rm = TRUE) - 
-                  stats::sd(x, na.rm = TRUE) * params[["heterozygosity_treshold"]]
+                  stats::sd(x, na.rm = TRUE) * params[["heterozygosity_threshold"]]
               )
             })(.)
         )
@@ -866,9 +866,9 @@ ggpubr::ggarrange(
             (function(x) {
               c(
                 mean(x, na.rm = TRUE) + 
-                  stats::sd(x, na.rm = TRUE) * params[["heterozygosity_treshold"]],
+                  stats::sd(x, na.rm = TRUE) * params[["heterozygosity_threshold"]],
                 mean(x, na.rm = TRUE) - 
-                  stats::sd(x, na.rm = TRUE) * params[["heterozygosity_treshold"]]
+                  stats::sd(x, na.rm = TRUE) * params[["heterozygosity_threshold"]]
               )
             })(.)
         )
@@ -1557,7 +1557,7 @@ The data from the **`r params[["cohort_name"]]`** cohort was pruned using the fo
 * MAF ≥ `r params[["maf_threshold"]]`
 * HWE > `r scales::scientific(params[["hwe_pvalue"]])`
 * samples call rate > `r scales::percent(params[["callrate_samples"]], accuracy = 0.01)`
-* heterozygosity rate within `r qdap::replace_number(params[["heterozygosity_treshold"]])` times SD from the mean heterozygosity rate
+* heterozygosity rate within `r qdap::replace_number(params[["heterozygosity_threshold"]])` times SD from the mean heterozygosity rate
     
 The resulting "clean" dataset (*i.e.*, **`r scales::comma(n_samples-n_samples_1kg)`** samples and **`r scales::comma(n_good_snp)`** variants) was merged with the data from the publicly available *1,000 Genomes project* database, 
 and thinned down to only include not palindromic variants that were present in both dataset. 
