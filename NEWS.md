@@ -3,6 +3,8 @@
 ## Minor improvements and fixes
 
 * In [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd), fix a typos in the names of a parameters.
+* In `R/qc_plink.R`, fix a typos in the names of a parameters.
+* In `DESCRIPTION`, remove dependendy to libterm-readkey-perl.
 
 # dgapaq 0.1.9
 
