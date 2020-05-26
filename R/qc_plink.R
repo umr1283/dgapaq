@@ -1,6 +1,6 @@
 #' Compute quality-control of genotyping array (PLINK format) using a rmarkdown template.
 #'
-#' @param input_directory A `character`. The path to the plink files.
+#' @param input_files A `character`. The path to the plink files.
 #'     The path should contains the file name without the extension, i.e., without `*.bed`, `*.bim` or `*.fam`.
 #' @param output_directory A `character`. The path to the output directory.
 #' @param cohort_name A `character`. The name of the studied cohort / population.
@@ -10,7 +10,7 @@
 #'     Default is `0.95`.
 #' @param callrate_snps A `numeric`. The call rate threshold for probes, under which probes are excluded.
 #'     Default is `0.95`.
-#' @param heterozygosity_treshold A `numeric`. The heterozygosity threshold for samples
+#' @param heterozygosity_threshold A `numeric`. The heterozygosity threshold for samples
 #'    (number of standard deviation from the mean), under/above which samples are excluded.
 #'     Default is `4`.
 #' @param maf_threshold A `numeric`. The minor allele frequency under which variants are considered "rare".
@@ -101,14 +101,14 @@
 #'
 #' @export
 qc_plink <- function(
-  input_directory = NULL,
+  input_files = NULL,
   output_directory = NULL,
   cohort_name = "COHORT",
   output_file = paste0(cohort_name, "_QC.html"),
   array = NULL,
   callrate_samples = 0.95,
   callrate_snps = 0.95,
-  heterozygosity_treshold = 4,
+  heterozygosity_threshold = 4,
   maf_threshold = 0.01,
   hwe_pvalue = 0.0001,
   includes_relatives = FALSE,
@@ -160,13 +160,13 @@ qc_plink <- function(
     output_dir = output_directory,
     encoding = encoding,
     params = list(
-      input_directory = input_directory,
+      input_files = input_files,
       output_directory = output_directory,
       cohort_name = cohort_name,
       array = array,
       callrate_samples = callrate_samples,
       callrate_snps = callrate_snps,
-      heterozygosity_treshold = heterozygosity_treshold,
+      heterozygosity_threshold = heterozygosity_threshold,
       maf_threshold = maf_threshold,
       hwe_pvalue = hwe_pvalue,
       includes_relatives = includes_relatives,
