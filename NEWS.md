@@ -1,3 +1,9 @@
+# dgapaq 0.1.10
+
+## Minor improvements and fixes
+
+* In [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd), fix a typos in the names of a parameters.
+
 # dgapaq 0.1.9
 
 ## Minor improvements and fixes
