@@ -5,14 +5,14 @@
 \title{Compute quality-control of genotyping array (PLINK format) using a rmarkdown template.}
 \usage{
 qc_plink(
-  input_directory = NULL,
+  input_files = NULL,
   output_directory = NULL,
   cohort_name = "COHORT",
   output_file = paste0(cohort_name, "_QC.html"),
   array = NULL,
   callrate_samples = 0.95,
   callrate_snps = 0.95,
-  heterozygosity_treshold = 4,
+  heterozygosity_threshold = 4,
   maf_threshold = 0.01,
   hwe_pvalue = 1e-04,
   includes_relatives = FALSE,
@@ -45,7 +45,7 @@ qc_plink(
 )
 }
 \arguments{
-\item{input_directory}{A \code{character}. The path to the plink files.
+\item{input_files}{A \code{character}. The path to the plink files.
 The path should contains the file name without the extension, i.e., without \verb{*.bed}, \verb{*.bim} or \verb{*.fam}.}
 
 \item{output_directory}{A \code{character}. The path to the output directory.}
@@ -62,7 +62,7 @@ Default is \code{0.95}.}
 \item{callrate_snps}{A \code{numeric}. The call rate threshold for probes, under which probes are excluded.
 Default is \code{0.95}.}
 
-\item{heterozygosity_treshold}{A \code{numeric}. The heterozygosity threshold for samples
+\item{heterozygosity_threshold}{A \code{numeric}. The heterozygosity threshold for samples
 (number of standard deviation from the mean), under/above which samples are excluded.
 Default is \code{4}.}
 
