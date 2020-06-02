@@ -521,17 +521,20 @@ samples_toexclude <- dplyr::bind_rows(
   sexcheck_missing,
   sexcheck_other
 )
+
+sexcheck_text <- paste0(
+  'For **', scales::comma(nrow(sexcheck_problem)), 
+  '** samples (including **', scales::comma(sum(sexcheck_problem[, "Gender"] == 0)), 
+  '**, with unspecified sex and **', scales::comma(sum(sexcheck_problem[, "SNPSEX"] == 0)), 
+  '** samples with undetermined genotypic sex), the gender discrepancy between genotyping data and reported gender could not be resolved, and have been flagged.'
+)
 ```
 
 The mean homozygosity rate across the X-chromosome was computed using the `--check-sex` command in PLINK.
 
-For **`r scales::comma(nrow(sexcheck_problem))`** samples 
-(including **`r scales::comma(sum(sexcheck_problem[, "Gender"] == 0))`**, 
-with unspecified sex and **`r scales::comma(sum(sexcheck_problem[, "SNPSEX"] == 0))`**
-samples with undetermined genotypic sex), the gender discrepancy between
-genotyping data and reported gender could not be resolved, and have been flagged.
+`r if (gender_file_check) cat(sexcheck_text, "\n")`
 
-`r if (!file.exists(cohort_details)) cat("Note: Gender phenotype was read from PLINK files.\n")`
+`r if (!file.exists(cohort_details) & gender_file_check) cat("Note: Gender phenotype was read from PLINK files.\n")`
 
 ```{r gender-check-03, eval = gender_file_check, fig.cap = paste("The homozygosity rate for each sample (estimated using X-chromosomal variants)", "plotted against the proportion of missing genotypes per sample.", "Male samples are expected to have a homozygosity rate greater than 0.8,", "female samples are expected to have a homozygosity rate less than 0.2.", "Samples for which gender information is discordant or missing were denoted by red cross.")}
 ggplot2::ggplot(
