@@ -374,8 +374,8 @@ callrate_thresholds <- sort(unique(c(params[["callrate_samples"]], 0.90, 0.95, 0
 
 callrate_thresholds_table <- cbind(
   callrate_thresholds,
-  rowSums(sapply(callrate_samples[, "F_MISS"], ">", 1 - callrate_thresholds)),
-  rowSums(sapply(callrate_samples_geq[, "F_MISS"], ">", 1 - callrate_thresholds))
+  rowSums(sapply(callrate_samples[["F_MISS"]], ">", 1 - callrate_thresholds)),
+  rowSums(sapply(callrate_samples_geq[["F_MISS"]], ">", 1 - callrate_thresholds))
 ) %>%
   as.data.frame() %>%
   dplyr::mutate(callrate_thresholds = scales::percent(callrate_thresholds, accuracy = 0.01)) %>%
@@ -625,8 +625,8 @@ heterozygosity <- data.table::fread(file.path(temp_directory, "raw_data_auto.het
       ), 
       labs = ifelse(
         test = F_MISS < 1 - params[["callrate_samples"]] & ( 
-          hrate > mean(hrate) + stats::sd(hrate * params[["heterozygosity_threshold"]]) | 
-            hrate < mean(hrate) - stats::sd(hrate * params[["heterozygosity_threshold"]])
+          hrate > mean(hrate, na.rm = TRUE) + stats::sd(hrate * params[["heterozygosity_threshold"]], na.rm = TRUE) | 
+            hrate < mean(hrate, na.rm = TRUE) - stats::sd(hrate * params[["heterozygosity_threshold"]], na.rm = TRUE)
         ), 
         yes = IID, 
         no = NA
@@ -647,8 +647,8 @@ if (is_maf_lower) {
         colour = sqrt((hrate - mean(hrate, na.rm = TRUE))^2 + (F_MISS - mean(F_MISS, na.rm = TRUE))^2), 
         labs = ifelse(
           test = F_MISS < 1 - params[["callrate_samples"]] & ( 
-            hrate > mean(hrate) + stats::sd(hrate * params[["heterozygosity_threshold"]]) | 
-              hrate < mean(hrate) - stats::sd(hrate * params[["heterozygosity_threshold"]])
+            hrate > mean(hrate, na.rm = TRUE) + stats::sd(hrate * params[["heterozygosity_threshold"]], na.rm = TRUE) | 
+              hrate < mean(hrate, na.rm = TRUE) - stats::sd(hrate * params[["heterozygosity_threshold"]], na.rm = TRUE)
           ), 
           yes = IID, 
           no = NA
@@ -801,8 +801,8 @@ if (is_maf_lower) {
     ggplot2::annotate(
       "text",
       label = paste0("No variants found with MAF < ", params[["maf_threshold"]]),
-      x = mean(stats::na.omit(heterozygosity[["F_MISS"]])),
-      y = mean(stats::na.omit(heterozygosity[["hrate"]]))
+      x = mean(heterozygosity[["F_MISS"]], na.rm = TRUE),
+      y = mean(heterozygosity[["hrate"]], na.rm = TRUE)
     )
 }
 
@@ -949,7 +949,7 @@ Pairs of sample with $\hat{\pi}$ ("PI_HAT") greater than `r params[["IBD_thresho
 
 ```{r relatedness-02, eval = !params[["includes_relatives"]]}
 data.frame(table(cut(
-  relatedness[, "PI_HAT"],
+  relatedness[["PI_HAT"]],
   breaks = c(params[["IBD_threshold"]], 0.3, 0.4, 0.6, 0.8, 1),
   include.lowest = TRUE
 ))) %>%
@@ -1537,7 +1537,7 @@ data_pca <- dplyr::bind_rows(
   dplyr::rename(x = PC1, y = PC2, Population = POP) %>%
   dplyr::select(IID, Population, x, y) %>%
   dplyr::left_join(
-    y = stats::aggregate(cbind(x, y) ~ Population, data = ., mean) %>%
+    y = stats::aggregate(cbind(x, y) ~ Population, data = ., mean, na.rm = TRUE) %>%
       `colnames<-`(paste0(colnames(.), c("", ".centroid", ".centroid"))),
     by = "Population"
   ) %>%
@@ -1658,7 +1658,7 @@ p_superpop <- ggplot2::ggplot(
   ) +
   ggplot2::scale_colour_viridis_d(direction = -1) +
   ggplot2::scale_fill_viridis_d(direction = -1) +
-  ggplot2::scale_shape_manual(values = rep(c(1:5), 3)) +
+  ggplot2::scale_shape_manual(values = rep(c(1:5), 10)[seq_len(unique(data_pca_plot[["SUPER_POP"]]))]) +
   ggplot2::labs(
     x = "First Principal Component", 
     y = "Second Principal Component", 
@@ -1702,7 +1702,7 @@ p_pop <- ggplot2::ggplot(
   ) +
   ggplot2::scale_colour_viridis_d(direction = -1) +
   ggplot2::scale_fill_viridis_d(direction = -1) +
-  ggplot2::scale_shape_manual(values = rep(c(1:5), 3)) +
+  ggplot2::scale_shape_manual(values = rep(c(1:5), 10)[seq_len(unique(data_pca_plot[["Population"]]))]) +
   ggplot2::labs(
     x = "First Principal Component", 
     y = "Second Principal Component",
@@ -1769,8 +1769,8 @@ if (nrow(not_target_population) > 15) {
     gt::gt(auto_align = "center") %>% 
     gt::opt_row_striping() %>% 
     gt::tab_header(paste0(
-        "Samples determined as non-", pop_name, "(s) based on PCA ", 
-        "(N = ", scales::comma(nrow(not_target_population)), ")."
+      "Samples determined as non-", pop_name, "(s) based on PCA ", 
+      "(N = ", scales::comma(nrow(not_target_population)), ")."
     ))
 }
 ```
@@ -1889,7 +1889,8 @@ inertia_within <- data.table::fread(file.path(temp_directory, "clean_data_tmp_wi
   tibble::rownames_to_column("x") %>%
   dplyr::mutate(y = V1 / sum(V1)) %>%
   dplyr::select(x, y) %>% 
-  dplyr::mutate(x = as.numeric(x))
+  dplyr::mutate(x = as.numeric(x)) %>% 
+  as.data.frame()
 
 p_inertia_within <- ggplot2::ggplot(
   data = dplyr::filter(.data = inertia_within, x %in% 1:params[["pca_components"]]),
@@ -2368,6 +2369,19 @@ if (is.null(params[["ref1kg_fasta"]])) {
     "--rename-chrs", file.path(temp_directory, "plink2ensembl.txt"),
     paste0(imputation_filename, ".vcf.gz"),
     "-Oz", 
+    ">", file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz"))
+  ))
+  
+  system(command = paste(
+    params[["bin_path"]][["bcftools"]], "index", 
+    file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz"))
+  ))
+} else {
+  system(command = paste(
+    params[["bin_path"]][["bcftools"]], "annotate", 
+    "--rename-chrs", file.path(temp_directory, "plink2ensembl.txt"),
+    paste0(imputation_filename, ".vcf.gz"),
+    "-Oz", 
     ">", file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC_tmp.vcf.gz"))
   ))
   system(command = paste(
@@ -2390,19 +2404,6 @@ if (is.null(params[["ref1kg_fasta"]])) {
     file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz")), 
     "-o /dev/null"
   ))
-  system(command = paste(
-    params[["bin_path"]][["bcftools"]], "index", 
-    file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz"))
-  ))
-} else {
-  system(command = paste(
-    params[["bin_path"]][["bcftools"]], "annotate", 
-    "--rename-chrs", file.path(temp_directory, "plink2ensembl.txt"),
-    paste0(imputation_filename, ".vcf.gz"),
-    "-Oz", 
-    ">", file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz"))
-  ))
-  
   system(command = paste(
     params[["bin_path"]][["bcftools"]], "index", 
     file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz"))

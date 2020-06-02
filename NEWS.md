@@ -16,6 +16,9 @@
   + Fix issue with reference allele.
   + Fix a typos in the names of a parameters.
   + Fix gender check text printed when check was disabled.
+  + Fix condition when fasta file is not provided.
+  + Ensure missing values are moved before computing mean.
+  + Ensure scale for shape has always the right number of values.
   + Add missing new line in summary.
   + Add condition when no fasta file is provided.
 * In `R/qc_vcf.R`, 
