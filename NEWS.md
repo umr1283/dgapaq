@@ -13,10 +13,11 @@
   + Fix condition when be files are not available.
   + Fix merge of files after check against reference panel.
   + Fix combined vcf files not created.
-  + Add missing new line in summary.
   + Fix issue with reference allele.
-  + Add condition when no fasta file is provided.
   + Fix a typos in the names of a parameters.
+  + Fix gender check text printed when check was disabled.
+  + Add missing new line in summary.
+  + Add condition when no fasta file is provided.
 * In `R/qc_vcf.R`, 
   + Add filenames and URLs to download needed files.
 * In `R/qc_plink.R`, 
