@@ -521,22 +521,25 @@ samples_toexclude <- dplyr::bind_rows(
   sexcheck_missing,
   sexcheck_other
 )
-
-sexcheck_text <- paste0(
-  'For **', scales::comma(nrow(sexcheck_problem)), 
-  '** samples (including **', scales::comma(sum(sexcheck_problem[, "Gender"] == 0)), 
-  '**, with unspecified sex and **', scales::comma(sum(sexcheck_problem[, "SNPSEX"] == 0)), 
-  '** samples with undetermined genotypic sex), the gender discrepancy between genotyping data and reported gender could not be resolved, and have been flagged.'
-)
 ```
 
 The mean homozygosity rate across the X-chromosome was computed using the `--check-sex` command in PLINK.
 
-`r if (gender_file_check) cat(sexcheck_text, "\n")`
+```{r gender-check-03, eval = gender_file_check & nrow(sexcheck_problem) > 0}
+cat(
+  paste0(
+    'For **', scales::comma(nrow(sexcheck_problem)), 
+    '** samples (including **', scales::comma(sum(sexcheck_problem[, "Gender"] == 0)), 
+    '**, with unspecified sex and **', scales::comma(sum(sexcheck_problem[, "SNPSEX"] == 0)), 
+    '** samples with undetermined genotypic sex), the gender discrepancy between genotyping data and reported gender could not be resolved, and have been flagged.',
+    '\n\n'
+  )
+)
+```
 
-`r if (!file.exists(cohort_details) & gender_file_check) cat("Note: Gender phenotype was read from PLINK files.\n")`
+`r if (!file.exists(cohort_details)) cat("Note: Gender phenotype was read from PLINK files.\n")`
 
-```{r gender-check-03, eval = gender_file_check, fig.cap = paste("The homozygosity rate for each sample (estimated using X-chromosomal variants)", "plotted against the proportion of missing genotypes per sample.", "Male samples are expected to have a homozygosity rate greater than 0.8,", "female samples are expected to have a homozygosity rate less than 0.2.", "Samples for which gender information is discordant or missing were denoted by red cross.")}
+```{r gender-check-04, eval = gender_file_check, fig.cap = paste("The homozygosity rate for each sample (estimated using X-chromosomal variants)", "plotted against the proportion of missing genotypes per sample.", "Male samples are expected to have a homozygosity rate greater than 0.8,", "female samples are expected to have a homozygosity rate less than 0.2.", "Samples for which gender information is discordant or missing were denoted by red cross.")}
 ggplot2::ggplot(
   data = tidyr::drop_na(sexcheck, `F`),
   mapping = ggplot2::aes(
@@ -943,7 +946,7 @@ pairwise IBD (identity by descent) was computed, using the `--genome` command in
 Prior to the analysis, the dataset was pruned to exclude high-LD-regions, 
 that is no variants with MAF < `r params[["maf_threshold"]]` and no pair of variants within 50 Kb have an r² > 0.2.
 
-If samples in the cohort **`r params[["cohort_name"]]`** are not supposed to be related, 
+If the samples in the cohort **`r params[["cohort_name"]]`** are not supposed to be related, 
 the expected pairwise $\hat{\pi}$ ("PI_HAT") should be less than `r params[["IBD_threshold"]]`.  
 Pairs of sample with $\hat{\pi}$ ("PI_HAT") greater than `r params[["IBD_threshold"]]` were flagged.
 
