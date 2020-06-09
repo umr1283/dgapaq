@@ -48,8 +48,6 @@ Imports:
     writexl (>= 1.2)
 Suggests:
     roxygen2 (>= 7.0.2)
-Remotes:
-    github::rstudio/gt
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
