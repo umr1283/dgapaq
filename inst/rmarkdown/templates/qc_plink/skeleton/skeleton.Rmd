@@ -996,11 +996,20 @@ related_samples <- relatedness %>%
 
 if (nrow(related_samples) != 0) {
   related_samples %>% 
-    gt::gt(auto_align = "center") %>% 
+    as.data.frame() %>% 
+    dplyr::mutate(
+      IBD = cut(PI_HAT, breaks = c(params[["IBD_threshold"]], 0.3, 0.4, 0.6, 0.8, 1), include.lowest = TRUE),
+      IBD = factor(
+        x = IBD,
+        labels = paste0(levels(IBD), c(" = Second degree relatives", "", " = First degree relatives", "", " = MZ twins/duplicates"))
+      )
+    ) %>% 
+    gt::gt(groupname_col = "IBD", auto_align = "center") %>% 
     gt::opt_row_striping() %>% 
     gt::tab_header(paste0(
       "Pairs of samples with a proportion of IBD higher than ", params[["IBD_threshold"]], "."
-    ))
+    )) %>% 
+    print()
 }
 
 if (dplyr::n_distinct(dplyr::select(recruit_centre, Cohort)) > 1) {
@@ -1027,7 +1036,8 @@ if (dplyr::n_distinct(dplyr::select(recruit_centre, Cohort)) > 1) {
     cross_cohorts_IBD %>% 
       gt::gt(auto_align = "center") %>% 
       gt::opt_row_striping() %>% 
-      gt::tab_header("Cross cohort related sample pairs.")
+      gt::tab_header("Cross cohort related sample pairs.") %>% 
+    print()
   } else {
     cat("No cross-cohort IBDs was found in the dataset.\n\n")
   }
