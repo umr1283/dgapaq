@@ -419,11 +419,23 @@ cat(
 ```
 
 ```{r sample-call-rate-04}
+cols_table <- c(
+  "Call rate threshold", 
+  "Samples to exclude\n(all variants)", 
+  paste0("Samples to exclude\n(variants with MAF ≥ ", params[["maf_threshold"]],")")
+)
 callrate_thresholds_table %>% 
   gt::gt(auto_align = "center") %>% 
   gt::opt_row_striping() %>% 
   gt::tab_header(
     paste("Number of samples to exclude for", qdap::replace_number(length(callrate_thresholds)), "call rate thresholds.")
+  ) %>% 
+  gt::tab_style(
+    style = gt::cell_fill(color = "dodgerblue", alpha = 0.5), 
+    locations = gt::cells_body(
+      columns = gt::vars(!!!cols_table), 
+      rows = `Call rate threshold` == scales::percent(params[["callrate_samples"]], accuracy = 0.01)
+    )
   )
 ```
 
@@ -450,8 +462,8 @@ ggplot2::ggplot(
     colour = "firebrick2", 
     linetype = 2
   ) +
-  ggplot2::scale_x_continuous(labels = scales::comma_format(), trans = "log10") +
-  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)) +
+  ggplot2::scale_x_continuous(labels = scales::comma_format(accuracy = 1), trans = "log10") +
+  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.1)) +
   ggplot2::labs(x = "Samples", y = "Call rate")
 ```
 
@@ -539,7 +551,7 @@ cat(
 
 `r if (!file.exists(cohort_details)) cat("Note: Gender phenotype was read from PLINK files.\n")`
 
-```{r gender-check-04, eval = gender_file_check, fig.cap = paste("The homozygosity rate for each sample (estimated using X-chromosomal variants)", "plotted against the proportion of missing genotypes per sample.", "Male samples are expected to have a homozygosity rate greater than 0.8,", "female samples are expected to have a homozygosity rate less than 0.2.", "Samples for which gender information is discordant or missing were denoted by red cross.")}
+```{r gender-check-04, eval = gender_file_check, fig.cap = paste("The homozygosity rate for each sample (estimated using X-chromosomal variants)", "plotted against the proportion of missing genotypes per sample.", "Male samples are expected to have a homozygosity rate greater than 80 %,", "female samples are expected to have a homozygosity rate less than 20 %.", "Samples for which gender information is discordant or missing were denoted by red cross.")}
 ggplot2::ggplot(
   data = tidyr::drop_na(sexcheck, `F`),
   mapping = ggplot2::aes(
@@ -587,8 +599,8 @@ ggplot2::ggplot(
   ) +
   ggplot2::scale_colour_manual(values = c(scales::viridis_pal(begin = 0.5, end = 0.5)(1), "firebrick2")) +
   ggplot2::scale_shape_manual(values = c(1, 3)) +
-  ggplot2::scale_x_continuous(breaks = seq(0, 1, 0.2)) +
-  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)) +
+  ggplot2::scale_x_continuous(breaks = seq(0, 1, 0.2), labels = scales::percent_format(accuracy = 0.1)) +
+  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.1)) +
   ggplot2::labs(x = "Homozygosity rate", y = "Call rate") +
   ggplot2::theme(legend.position = "none")
 ```
@@ -831,18 +843,18 @@ if (is_maf_lower) {
 ```{r heterozygosity-05, fig.height = 4.7 * 1.5, fig.cap = paste0("Heterozygosity rate against the call rate per sample. ", "A and C, the heterozygosity rate computed based on all variants. ", "B and D, the heterozygosity estimated from variants with a MAF < ", params[["maf_threshold"]], ". ", "The horizontal red lines denote the ", qdap::replace_number(params[["heterozygosity_threshold"]]), " times standard deviations (SD) from the mean heterozygosity rate ", "and were used to define outlying heterozygosity.", " SD was computed only on samples with a call rate greater than or equal to ", scales::percent(params[["callrate_samples"]], accuracy = 0.01), ".")}
 ggpubr::ggarrange(
   p_heteR + 
-    ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 0.01)) +
-    ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)), 
+    ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 0.1)) +
+    ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.1)), 
   p_heteR_maf_lower + 
-    ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 0.01)) +
-    ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)), 
+    ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 0.1)) +
+    ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.1)), 
   p_heteR + 
     ggplot2::scale_x_continuous(
-      labels = scales::percent_format(accuracy = 0.01),
+      labels = scales::percent_format(accuracy = 0.1),
       limits = c(params[["callrate_samples"]], NA)
     ) +
     ggplot2::scale_y_continuous(
-      labels = scales::percent_format(accuracy = 0.01),
+      labels = scales::percent_format(accuracy = 0.1),
       limits = range(
         c(
           dplyr::filter(heterozygosity, F_MISS < 1 - params[["callrate_samples"]])[["hrate"]],
@@ -860,11 +872,11 @@ ggpubr::ggarrange(
     ),
   p_heteR_maf_lower + 
     ggplot2::scale_x_continuous(
-      labels = scales::percent_format(accuracy = 0.01),
+      labels = scales::percent_format(accuracy = 0.1),
       limits = c(params[["callrate_samples"]], NA)
     ) +
     ggplot2::scale_y_continuous(
-      labels = scales::percent_format(accuracy = 0.01),
+      labels = scales::percent_format(accuracy = 0.1),
       limits = range(
         c(
           dplyr::filter(heterozygosity_maf_lower, F_MISS < 1 - params[["callrate_samples"]])[["hrate"]],
@@ -1001,6 +1013,7 @@ if (nrow(related_samples) != 0) {
       IBD = cut(PI_HAT, breaks = c(params[["IBD_threshold"]], 0.3, 0.4, 0.6, 0.8, 1), include.lowest = TRUE),
       IBD = factor(
         x = IBD,
+        levels = levels(IBD),
         labels = paste0(levels(IBD), c(" = Second degree relatives", "", " = First degree relatives", "", " = MZ twins/duplicates"))
       )
     ) %>% 
@@ -1209,8 +1222,8 @@ ggplot2::ggplot(
     size = 2.5,
     na.rm = TRUE
   ) +
-  ggplot2::scale_x_continuous(labels = scales::comma_format(), trans = "log10") +
-  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)) +
+  ggplot2::scale_x_continuous(labels = scales::comma_format(accuracy = 1), trans = "log10") +
+  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.1)) +
   ggplot2::labs(x = "Samples", y = "Mendel Error Rate")
 ```
 
@@ -1913,7 +1926,7 @@ p_inertia_within <- ggplot2::ggplot(
   ggplot2::labs(y = "Inertia", x = "Principal Components", title = "PCA Scree Plot") +
   ggplot2::scale_x_continuous(breaks = seq_len(params[["pca_components"]])) +
   ggplot2::scale_y_continuous(
-    labels = scales::percent_format(accuracy = 0.01), 
+    labels = scales::percent_format(accuracy = 0.1), 
     expand = ggplot2::expansion(mult = c(0, 0.05))
   )
 
@@ -2055,8 +2068,8 @@ ggplot2::ggplot(
     colour = "firebrick2", 
     linetype = 2
   ) +
-  ggplot2::scale_x_continuous(labels = scales::comma_format(), trans = "log10") +
-  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)) +
+  ggplot2::scale_x_continuous(labels = scales::comma_format(accuracy = 1), trans = "log10") +
+  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.1)) +
   ggplot2::labs(x = "Variants", y = "Call rate")
 ```
 
@@ -2148,8 +2161,8 @@ ggplot2::ggplot(
     na.rm = TRUE
   ) +
   ggplot2::geom_hline(yintercept = params[["mendelian_snp"]], colour = "firebrick2", linetype = 2) +
-  ggplot2::scale_x_continuous(labels = scales::comma_format(), trans = "log10") +
-  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.01)) +
+  ggplot2::scale_x_continuous(labels = scales::comma_format(accuracy = 1), trans = "log10") +
+  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.1)) +
   ggplot2::labs(x = "Variants", y = "Mendel Error Rate")
 ```
 
@@ -2199,7 +2212,7 @@ data.table::fread(file.path(temp_directory, "raw_data_good_samples.frq")) %>%
     ggplot2::geom_bar(fill = scales::viridis_pal(begin = 0.5, end = 0.5)(1)) +
     ggplot2::labs(x = "MAF", y = "Number of variants") +
     ggplot2::scale_y_continuous(
-      labels = scales::comma_format(),
+      labels = scales::comma_format(accuracy = 1),
       expand = ggplot2::expansion(mult = c(0, 0.1))
     )
 ```
@@ -2237,7 +2250,7 @@ ggplot2::ggplot(data = hwe_significant) +
     na.rm = TRUE
   ) +
   ggplot2::geom_hline(yintercept = params[["hwe_pvalue"]], colour = "firebrick2", linetype = 2) +
-  ggplot2::scale_x_continuous(labels = scales::comma_format(), trans = "log10") +
+  ggplot2::scale_x_continuous(labels = scales::comma_format(accuracy = 1), trans = "log10") +
   ggplot2::scale_y_continuous(trans = pval_trans()) +
   ggplot2::labs(x = "Variants", y = "Hardy-Weinberg Equilibrium P-value")
 ```
