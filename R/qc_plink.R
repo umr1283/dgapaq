@@ -81,7 +81,7 @@
 #' @importFrom bookdown html_document2
 #' @importFrom knitr opts_chunk kable
 #' @importFrom Hmisc capitalize
-#' @importFrom gt gt opt_row_striping tab_header fmt_number
+#' @importFrom gt gt opt_row_striping tab_header fmt_number tab_style cells_body cell_fill vars
 #' @importFrom scales trans_new scientific scientific_format comma comma_format percent percent_format viridis_pal
 #' @importFrom utils read.table write.table combn
 #' @importFrom data.table fread
