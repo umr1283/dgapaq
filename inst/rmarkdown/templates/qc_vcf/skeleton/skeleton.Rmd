@@ -6,11 +6,8 @@ params:
   author_name: "Firstname Lastname"
   author_affiliation: "Institution"
   author_email: "some@email.com"
-  cache: FALSE
-  show_code: FALSE
-  n_cores: 1
   dpi: 120
-  gg_fontsize: 12
+  gg_fontsize: 11
 title: '`r params[["title"]]`'
 author:
 - name: '`r params[["author_name"]]`'
@@ -25,33 +22,33 @@ output:
     toc_float: 
       collapsed: false
     fig_width: 6.3
-    fig_height: 4.7
+    fig_height: 9.4
     number_sections: true
     self_contained: true
     mathjax: default
-    df_print: kable
 ---
 
 ```{r setup, include = FALSE}
-options(stringsAsFactors = FALSE, knitr.table.format = "html")
+options(stringsAsFactors = FALSE)
 
 output_directory <- params[["output_directory"]]
 dir.create(output_directory, recursive = TRUE, showWarnings = FALSE)
 
 ### Load packages and functions
-# library("bookdown")
-# library("data.table")
-# library("dplyr")
-# library("forcats")
-# library("fs")
-# library("ggplot2")
-# library("gt")
-# library("knitr")
-# library("rmarkdown")
-# library("scales")
-# library("sessioninfo")
-# library("tidyr")
-# library("utils")
+library("bookdown")
+library("data.table")
+library("forcats")
+library("fs")
+library("ggplot2")
+library("gt")
+library("knitr")
+library("parallel")
+library("patchwork")
+library("rmarkdown")
+library("scales")
+library("sessioninfo")
+library("tidyr")
+library("utils")
 `%>%` <- magrittr::`%>%`
 
 
@@ -60,10 +57,10 @@ knitr::opts_chunk$set(
   results = "asis",
   size = "small",
   include = TRUE,
-  echo = params[["show_code"]],
-  warning = params[["show_code"]],
-  message = params[["show_code"]],
-  dpi = params[["dpi"]],
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  dpi = 120,
   tidy = FALSE,
   crop = TRUE,
   autodep = TRUE,
@@ -71,14 +68,87 @@ knitr::opts_chunk$set(
   fig.pos = "!H"
 )
 
-if (params[["cache"]]) {
-  dir.create(file.path(output_directory, "cache"), recursive = TRUE, showWarnings = FALSE, mode = "0777")
-  knitr::opts_chunk$set(cache = params[["cache"]], cache.path = paste0(output_directory, "/cache/"))
-}
-
 
 ### Define theme
-ggplot2::theme_set(ggplot2::theme_light(base_size = params[["gg_fontsize"]]))
+ggplot2::theme_set(ggplot2::theme_light(base_size = 11))
+
+
+### Functions
+af_tab <- function(data) {
+  out <- data[, .(n = .N), by = bin_af][, p := n / sum(n)]
+  out <- rbind(out, data.table::data.table(bin_af = "Total", n = sum(out[["n"]]), p = 1))
+  out[, n := scales::comma(n)]
+  out[, p := scales::percent(p, accuracy = 0.0001)]
+  out[order(bin_af)] %>% 
+    gt::gt(auto_align = "center") %>% 
+    gt::cols_label(
+      bin_af = "Alternate Allele Frequency",
+      n = "Count",
+      p = "%"
+    ) %>% 
+    gt::opt_row_striping()
+}
+
+info_tab <- function(data) {
+  out <- data[, .(n = .N), by = bin_info][, p := n / sum(n)]
+  out <- rbind(out, data.table::data.table(bin_info = "Total", n = sum(out[["n"]]), p = 1))
+  out[, n := scales::comma(n)]
+  out[, p := scales::percent(p, accuracy = 0.0001)]
+  out[order(bin_info)] %>% 
+    gt::gt(auto_align = "center") %>% 
+    gt::cols_label(
+      bin_info = "INFO score",
+      n = "Count",
+      p = "%"
+    ) %>% 
+    gt::opt_row_striping()
+}
+```
+
+```{r read, include = FALSE}
+list_vcf <- list.files(path = params[["input_directory"]], pattern = "vcf.gz$", full.names = TRUE)
+trash <- parallel::mclapply(
+  X = list_vcf,
+  mc.preschedule = FALSE, 
+  mc.cores = min(parallel::detectCores(), 4),
+  FUN = function(ichr) {
+    system(paste(
+      "vcftools", 
+      "--gzvcf", ichr, 
+      "--get-INFO 'INFO'",
+      "--get-INFO 'RefPanelAF'",
+      "--get-INFO 'AC'",
+      "--get-INFO 'AN'",
+      "--temp", output_directory, 
+      "--out", file.path(output_directory, basename(ichr))
+    ), intern = TRUE, ignore.stdout = TRUE)
+  }
+)
+all_chrosomoses <- lapply(
+  X = list_vcf,
+  FUN = function(ichr) {
+    out <- data.table::fread(
+      file = file.path(output_directory, paste0(basename(ichr), ".INFO")),
+      header = TRUE, 
+      colClasses = c(
+        "CHROM" = "character",
+        "POS" = "integer",
+        "INFO" = "numeric",
+        "RefPanelAF" = "numeric",
+        "AC" = "numeric",
+        "AN" = "numeric"
+      ),
+      showProgress = FALSE
+    )
+    unlink(file.path(output_directory, basename(ichr)), )
+    data.table::setnames(out, "CHROM", "CHR")
+    out[, AF := AC / AN]
+    out[, bin_af := forcats::fct_explicit_na(cut(AF, breaks = seq(0, 1, 0.1), include.lowest = TRUE))]
+    out[, bin_info := forcats::fct_explicit_na(cut(INFO, breaks = seq(0, 1, 0.1), include.lowest = TRUE))]
+  }
+)
+names(all_chrosomoses) <- gsub("^([^.]+)\\..*", "\\1", basename(list_vcf))
+all_chrosomoses_dt <- data.table::rbindlist(all_chrosomoses)
 ```
 
 # Method
@@ -154,196 +224,104 @@ See the VCF header lines for the dbSNP version used.
 
 # Imputation report
 
-```{r read, include = FALSE}
-list_vcf <- list.files(path = params[["input_directory"]], pattern = "vcf.gz$", full.names = TRUE)
-all_chrosomoses <- lapply(
-  X = list_vcf,
-  FUN = function(ichr) {
-    data.table::fread(
-      file = ichr, 
-      header = TRUE, 
-      check.names = FALSE,
-      skip = "#C",
-      select = c("#CHROM", "POS", "INFO"), 
-      colClasses = c("#CHROM" = "character", "POS" = "integer", "INFO" = "character"),
-      showProgress = FALSE
-    ) %>% 
-      dplyr::rename(CHR = `#CHROM`) %>% 
-      tidyr::separate(col = "INFO", into = c("RefPanelAF", "AC", "AN", "INFO"), sep = ";") %>% 
-      dplyr::mutate_at(.vars = dplyr::vars(c("RefPanelAF", "AC", "AN", "INFO")), .funs = ~as.numeric(gsub(".*=", "", .x))) %>% 
-      dplyr::mutate(
-        # CHR = as.character(CHR),
-        AF = AC / AN,
-        bin_af = cut(AF, breaks = seq(0, 1, 0.1), include.lowest = TRUE),
-        bin_info = cut(INFO, breaks = seq(0, 1, 0.1), include.lowest = TRUE),
-        bin_af = forcats::fct_explicit_na(bin_af),
-        bin_info = forcats::fct_explicit_na(bin_info)
-      )
-  }
-)
-names(all_chrosomoses) <- gsub("^([^.]+)\\..*", "\\1", basename(list_vcf))
-```
-
 ## Genome-Wide
 
 ### Variants binned by alternate allele frequency
 
 ```{r genomewide-af}
-all_chrosomoses %>% 
-  dplyr::bind_rows() %>% 
-  dplyr::count(bin_af) %>% 
-  dplyr::mutate(p = n / sum(n)) %>% 
-  dplyr::add_row(bin_af = "Total", n = sum(.$n), p = 1) %>%
-  dplyr::mutate(
-    n = scales::comma(n),
-    p = scales::percent(p, accuracy = 0.0001)
-  ) %>% 
-  dplyr::rename(
-    `Alternate Allele Frequency` = bin_af,
-    Count = n,
-    `%` = p
-  ) %>% 
-  gt::gt(auto_align = "center") %>% 
-  gt::opt_row_striping()
+af_tab(all_chrosomoses_dt)
 ```
 
 ### Variants binned by imputation INFO score
 
 ```{r genomewide-info}
-all_chrosomoses %>% 
-  dplyr::bind_rows() %>% 
-  dplyr::count(bin_info) %>% 
-  dplyr::mutate(p = n / sum(n)) %>% 
-  dplyr::add_row(bin_info = "Total", n = sum(.$n), p = 1) %>%
-  dplyr::mutate(
-    n = scales::comma(n),
-    p = scales::percent(p, accuracy = 0.0001)
-  ) %>% 
-  dplyr::rename(
-    `INFO score` = bin_info,
-    Count = n,
-    `%` = p
-  ) %>% 
-  gt::gt(auto_align = "center") %>% 
-  gt::opt_row_striping()
+info_tab(all_chrosomoses_dt)
 ```
 
-## Chromosome
+## Chromosomes {.tabset}
 
 ```{r chromosome}
-for (ichr in c(1:22, "X")) {
-  cat("### Chromosome ", ichr, "\n\n", sep = "")
+rm(all_chrosomoses_dt)
+for (ichr in intersect(c(1:22, "X"), names(all_chrosomoses))) {
+  cat("\n\n### Chr", ichr, " {-}\n\n", sep = "")
   tmp <- all_chrosomoses[[ichr]]
   
-  cat("#### Alternate allele frequency in cohort vs HRC\n\n")
   p1 <- ggplot2::ggplot(
-    data = tmp, 
-    mapping = ggplot2::aes(x = RefPanelAF, y = AF, colour = INFO > 0.8)
-  ) +
-    ggplot2::geom_point(size = 0.1, na.rm = TRUE) +
-    ggplot2::scale_colour_viridis_d(begin = 0.2, end = 0.8, na.value = "firebrick2") +
-    ggplot2::labs(x = "HRC alternate allele frequency", y = "Alternate allele frequency") +
-    ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 0.01), expand = c(0, 0)) +
-    ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.01), expand = c(0, 0))
-  print(p1)
-  cat("\n\n")
-  
-  cat("#### Variants binned by alternate allele frequency\n\n")
-  tmp %>% 
-    dplyr::count(bin_af) %>% 
-    dplyr::mutate(p = n / sum(n)) %>% 
-    dplyr::add_row(bin_af = "Total", n = sum(.$n), p = 1) %>%
-    dplyr::mutate(
-      n = scales::comma(n),
-      p = scales::percent(p, accuracy = 0.0001)
-    ) %>% 
-    dplyr::rename(
-      `Alternate Allele Frequency` = bin_af,
-      Count = n,
-      `%` = p
-    ) %>% 
-    gt::gt(auto_align = "center") %>% 
-    gt::opt_row_striping()
-  cat("\n\n")
-  p2 <- ggplot2::ggplot(
-    data = tmp %>% 
-      dplyr::count(bin_af) %>% 
-      dplyr::mutate(p = scales::percent(n / sum(n), accuracy = 0.01)), 
-    mapping = ggplot2::aes(x = bin_af, y = n, label = p)
-  ) +
-    ggplot2::geom_bar(fill = scales::viridis_pal(begin = 0.5, end = 0.5)(1), stat = "identity") +
-    ggplot2::geom_text(vjust = -0.1) +
-    ggplot2::scale_y_continuous(
-      labels = scales::comma, 
-      expand = ggplot2::expansion(mult = c(0, 0.10))
-    ) +
-    ggplot2::labs(x = "Alternate allele frequency", y = "Count") +
-    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
-  print(p2)
-  cat("\n\n")
-  
-  cat("#### Variants binned by imputation INFO score\n\n")
-  tmp %>% 
-    dplyr::count(bin_info) %>% 
-    dplyr::mutate(p = n / sum(n)) %>% 
-    dplyr::add_row(bin_info = "Total", n = sum(.$n), p = 1) %>%
-    dplyr::mutate(
-      n = scales::comma(n),
-      p = scales::percent(p, accuracy = 0.0001)
-    ) %>% 
-    dplyr::rename(
-      `INFO score` = bin_info,
-      Count = n,
-      `%` = p
-    ) %>% 
-    gt::gt(auto_align = "center") %>% 
-    gt::opt_row_striping()
-  cat("\n\n")
-  p3 <- ggplot2::ggplot(
-    data = tmp %>% 
-      dplyr::count(bin_info) %>% 
-      dplyr::mutate(p = scales::percent(n / sum(n), accuracy = 0.01)), 
-    mapping = ggplot2::aes(x = bin_info, y = n, label = p)
-  ) +
-    ggplot2::geom_bar(fill = scales::viridis_pal(begin = 0.5, end = 0.5)(1), stat = "identity") +
-    ggplot2::geom_text(vjust = -0.1) +
-    ggplot2::scale_y_continuous(
-      labels = scales::comma, 
-      expand = ggplot2::expansion(mult = c(0, 0.10))
-    ) +
-    ggplot2::labs(x = "INFO score", y = "Count") +
-    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
-  print(p3)
-  cat("\n\n")
-  
-  cat("#### Manhattan plot of the INFO score across the chromosome\n\n")
-  p4 <- ggplot2::ggplot(
-    data = tidyr::drop_na(tmp, INFO), 
-    mapping = ggplot2::aes(x = POS / 1e6, y = INFO, colour = INFO > 0.8)
-  ) +
-    ggplot2::geom_point(size = 0.1, na.rm = TRUE) +
-    ggplot2::scale_colour_viridis_d(begin = 0.2, end = 0.8) +
-    ggplot2::scale_x_continuous(labels = scales::comma) +
-    ggplot2::scale_y_continuous(expand = c(0, 0)) +
-    ggplot2::labs(x = "Position (Mb)", y = "INFO score")
-  print(p4)
-  cat("\n\n")
-  
-  cat("#### Check for consistent ascending chromosome/position ordering\n\n")
-  p5 <- ggplot2::ggplot(
     data = tidyr::drop_na(tmp, INFO),
-    mapping = ggplot2::aes(x = POS / 1e6, y = seq_along(POS) / 1e3)
+    mapping = ggplot2::aes(x = POS, y = seq_along(POS))
   ) +
     ggplot2::geom_point(
       size = 0.1, 
       colour = scales::viridis_pal(begin = 0.5, end = 0.5)(1), 
       na.rm = TRUE
     ) +
-    ggplot2::scale_x_continuous(labels = scales::comma) +
-    ggplot2::scale_y_continuous(labels = scales::comma) +
-    ggplot2::labs(x = "Position on chromosome (Mb)", y = "Line number (x 1,000)")
-  print(p5)
-  cat("\n\n")
+    ggplot2::scale_x_continuous(labels = scales::comma_format(scale = 1 / 1e6)) +
+    ggplot2::scale_y_continuous(labels = scales::comma_format(scale = 1 / 1e3)) +
+    ggplot2::labs(x = "Position (Mb)", y = "Line Number (x 1,000)")
+
+  p2 <- ggplot2::ggplot(
+    data = tmp, 
+    mapping = ggplot2::aes(x = RefPanelAF, y = AF, colour = INFO > 0.8)
+  ) +
+    ggplot2::geom_point(size = 0.1, na.rm = TRUE) +
+    ggplot2::scale_colour_viridis_d(begin = 0.2, end = 0.8, na.value = "firebrick2") +
+    ggplot2::scale_x_continuous(
+      labels = scales::percent_format(accuracy = 1, suffix = " %"), 
+      # expand = c(0, 0),
+      breaks = c(0, 0.5, 1), 
+      limits = c(0, 1)
+    ) +
+    ggplot2::scale_y_continuous(
+      labels = scales::percent_format(accuracy = 1, suffix = " %"), 
+      # expand = c(0, 0),
+      breaks = c(0, 0.5, 1), 
+      limits = c(0, 1)
+    ) +
+    ggplot2::labs(x = "HRC Alternate Allele Frequency", y = "Alternate Allele Frequency") +
+    ggplot2::guides(colour = "none") # ggplot2::guide_legend(override.aes = list(size = 3)))
+
+  p3 <- ggplot2::ggplot(
+    data = tidyr::drop_na(tmp, INFO), 
+    mapping = ggplot2::aes(x = POS, y = INFO, colour = INFO > 0.8)
+  ) +
+    ggplot2::geom_point(size = 0.1, na.rm = TRUE) +
+    ggplot2::geom_hline(yintercept = 0.8, colour = "firebrick2", linetype = 2) +
+    ggplot2::scale_colour_viridis_d(begin = 0.2, end = 0.8) +
+    ggplot2::scale_x_continuous(labels = scales::comma_format(scale = 1 / 1e6)) +
+    ggplot2::scale_y_continuous(expand = c(0, 0), breaks = seq(0, 1, 0.2)) +
+    ggplot2::labs(x = "Position (Mb)", y = "INFO Score") +
+    ggplot2::guides(colour = "none") # ggplot2::guide_legend(override.aes = list(size = 3)))
+
+  p4 <- ggplot2::ggplot(
+    data = tmp[, .(n = .N), by = bin_af][, p := scales::percent(n / sum(n), accuracy = 0.01, suffix = " %")], 
+    mapping = ggplot2::aes(x = bin_af, y = n, label = p)
+  ) +
+    ggplot2::geom_bar(fill = scales::viridis_pal(begin = 0.5, end = 0.5)(1), stat = "identity") +
+    ggplot2::geom_text(vjust = -0.1, size = 2.5) +
+    ggplot2::scale_x_discrete(guide = ggplot2::guide_axis(angle = 45))  +
+    ggplot2::scale_y_continuous(labels = scales::comma, expand = ggplot2::expansion(mult = c(0, 0.20))) +
+    ggplot2::labs(x = "Alternate Allele Frequency", y = "SNP Count")
+
+  p5 <- ggplot2::ggplot(
+    data = tmp[, .(n = .N), by = bin_info][, p := scales::percent(n / sum(n), accuracy = 0.01, suffix = " %")], 
+    mapping = ggplot2::aes(x = bin_info, y = n, label = p)
+  ) +
+    ggplot2::geom_bar(fill = scales::viridis_pal(begin = 0.5, end = 0.5)(1), stat = "identity") +
+    ggplot2::geom_text(vjust = -0.1, size = 2.5) +
+    ggplot2::scale_x_discrete(guide = ggplot2::guide_axis(angle = 45)) +
+    ggplot2::scale_y_continuous(labels = scales::comma, expand = ggplot2::expansion(mult = c(0, 0.20))) +
+    ggplot2::labs(x = "INFO Score", y = "SNP Count")
+
+  design <- "
+    12
+    33
+    44
+    55
+  "
+  p_all <- patchwork::wrap_plots(list(p1, p2, p3, p4, p5), design = design) +
+      patchwork::plot_annotation(tag_levels = "A")
+  print(p_all)
+
 }
 ```
 
