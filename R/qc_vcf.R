@@ -26,18 +26,18 @@
 #'
 #' @return NULL
 #'
-#' @import ggplot2
-#' @import tidyr
-#' @import data.table
 #' @importFrom bookdown html_document2
-#' @importFrom rmarkdown render
-#' @importFrom utils capture.output
-#' @importFrom fs dir_tree
-#' @importFrom knitr kable opts_chunk
-#' @importFrom gt gt opt_row_striping tab_header fmt_number
+#' @import data.table
 #' @importFrom forcats fct_explicit_na
-#' @importFrom scales comma percent viridis_pal
+#' @import ggplot2
+#' @importFrom gt gt opt_row_striping cols_label
+#' @importFrom knitr opts_chunk
+#' @importFrom parallel detectCores mclapply
+#' @importFrom patchwork plot_annotation wrap_plots
+#' @importFrom rmarkdown render
+#' @importFrom scales comma comma_format percent percent_format viridis_pal
 #' @importFrom sessioninfo session_info
+#' @importFrom tidyr drop_na
 #'
 #' @export
 qc_vcf <- function(

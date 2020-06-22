@@ -1,5 +1,12 @@
 # dgapaq (development version)
 
+## Minor improvements and fixes
+
+* In [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd),
+  + Improve performance and memory consumption.
+* In `R/qc_vcf.R`, 
+  + Update imports based on [rmarkdown template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd).
+
 # dgapaq 0.2.0
 
 ## Minor improvements and fixes
