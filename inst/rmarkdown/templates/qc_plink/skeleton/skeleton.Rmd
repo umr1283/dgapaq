@@ -10,6 +10,7 @@ params:
   array: NULL
   callrate_samples: 0.95
   callrate_snps: 0.95
+  sex_threshold: !r c(0.2, 0.8)
   heterozygosity_threshold: 4
   maf_threshold: 0.01
   hwe_pvalue: 0.0001
@@ -20,19 +21,15 @@ params:
   population: NULL
   pca_components: 10
   pca_threshold: 3
+  max_labels: 15
   check_bim_script: !r system.file("perl", "HRC-1000G-check-bim-NoReadKey.pl", package = "dgapaq")
   imputation_ref: "1KG"
-  imputation_panel: "1000GP_Phase3_combined.legend"
-  ref1kg_panel: "integrated_call_samples_v3.20130502.ALL.panel"
-  ref1kg_fasta: NULL
-  ref1kg_population: "20131219.populations.tsv"
-  ref1kg_genotypes: NULL
-  bin_path: !r list(bcftools = "bcftools", bgzip = "bgzip", plink = "/usr/bin/plink1.9", gcta = "gcta64")
-  cache: FALSE
-  show_code: FALSE
-  n_cores: 22
-  dpi: 120
-  gg_fontsize: 12
+  imputation_panel: "/disks/DATA/ExternalData/1kg/hg19/Reference_genome/1000GP_Phase3_combined.legend"
+  ref1kg_panel: "/disks/DATA/ExternalData/1kg/samples_description/integrated_call_samples_v3.20130502.ALL.panel"
+  ref1kg_fasta: "/disks/DATA/ExternalData/1kg/hg19/human_g1k_v37.fasta"
+  ref1kg_population: "/disks/DATA/ExternalData/1kg/samples_description/1kg_pop_description.tsv"
+  ref1kg_genotypes: "/disks/DATA/ExternalData/1kg/hg19/Genotypes/RawPLINK/ALL/"
+  bin_path: !r list(bcftools = "bcftools", bgzip = "bgzip", plink = "plink1.9", gcta = "gcta64")
 title: '`r params[["title"]]`'
 author:
 - name: '`r params[["author_name"]]`'
@@ -48,59 +45,104 @@ output:
       collapsed: false
     fig_width: 6.3
     fig_height: 4.7
-    fig_caption: true
     number_sections: true
     self_contained: true
-    mathjax: default
-    df_print: kable
 editor_options: 
   chunk_output_type: console
 ---
 
 ```{r setup, include = FALSE}
-options(stringsAsFactors = FALSE, knitr.table.format = "html")
+options(stringsAsFactors = FALSE)
 
+
+### Load packages ==================================================================================
+suppressPackageStartupMessages({
+  # library("bookdown")
+  # library("data.table")
+  # library("ggplot2")
+  # library("ggforce")
+  # library("ggrepel")
+  # library("ggtext")
+  # library("here")
+  # library("gt")
+  # library("knitr")
+  # library("parallel")
+  # library("patchwork")
+  # library("scales")
+  # library("stats")
+  # library("sessioninfo")
+  # library("writexl")
+})
+
+
+### Functions ======================================================================================
+sys <- function(command) system(command = command, ignore.stdout = TRUE, ignore.stderr = TRUE)
+
+`%>%` <- gt::`%>%`
+
+percent1 <- scales::percent_format(accuracy = 0.1, suffix = " %")
+percent2 <- scales::percent_format(accuracy = 0.01, suffix = " %")
+comma <- scales::comma_format(accuracy = 1)
+scientific <- function(x, ...) gsub("(.*)e([-+]*)0*(.*)", "\\1 &times; 10<sup>\\2\\3</sup>", scales::scientific(x, ...))
+
+pval_trans <- function(alpha = NULL, md = FALSE, prefix = FALSE) {
+  scales::trans_new(
+    name = "pval",
+    domain = c(0, 1),
+    transform = function(x) {x[x < .Machine$double.xmin] <- .Machine$double.xmin; -log(x, 10)},
+    inverse = function(x) {10^-x},
+    breaks = (function(n = 5) {
+      function(x) {
+        max <- floor(-log(min(c(x, alpha), na.rm = TRUE), base = 10))
+        if (max == 0) 1 else sort(unique(c(10^-seq(0, max, by = floor(max / n) + 1), alpha)))
+      }
+    })(),
+    format = (function(x) {
+      g <- function(x) {
+        gsub(
+          "1 %*% ", "",
+          gsub(
+            "(.*)e([-+]*)0*(.*)", "\\1 %*% 10^\\2\\3",
+            gsub(
+             "1e+00", "1",
+              scales::scientific(x),
+             fixed = TRUE
+            )),
+          fixed = TRUE
+        )
+      }
+      highlight_alpha <- function(x, md = FALSE, prefix = FALSE) {
+        if (md & nchar(system.file(package = "ggtext")) != 0) {
+          prefix_text <- if (prefix) "&alpha; = " else ""
+          out <- paste0(
+            "<b style = 'color:firebrick2;'>", 
+            gsub("(.*) [%][*][%] .*\\^(.*)", paste(prefix_text, "\\1 &times; 10<sup>\\2</sup>"), g(x)), 
+            "</b>"
+          )
+        } else {
+          prefix_text <- if (prefix) "alpha ==" else ""
+          out <- parse(text = paste(prefix_text, g(x)))
+        }
+        
+        out
+      }
+      
+      if (!is.null(alpha)) {
+        ifelse(
+          test = scales::scientific(x) == scales::scientific(alpha), 
+          yes = highlight_alpha(x, md, prefix), 
+          no = g(x)
+        )
+      } else {
+        parse(text = g(x))
+      }
+    })
+  )
+}
+
+
+### Environment ====================================================================================
 output_directory <- params[["output_directory"]]
-dir.create(output_directory, recursive = TRUE, showWarnings = FALSE)
-
-# library("bookdown")
-# library("data.table")
-# library("dplyr")
-# library("ggforce")
-# library("ggplot2")
-# library("ggpubr")
-# library("ggrepel")
-# library("gt")
-# library("Hmisc")
-# library("knitr")
-# library("parallel")
-# library("qdap")
-# library("readxl")
-# library("scales")
-# library("sessioninfo")
-# library("stats")
-# library("tibble")
-# library("tidyr")
-# library("utils")
-# library("writexl")
-`%>%` <- magrittr::`%>%`
-
-### Set knitr rmarkdown chunk options
-knitr::opts_chunk$set(
-  results = "asis",
-  size = "small",
-  include = TRUE,
-  echo = params[["show_code"]],
-  warning = params[["show_code"]],
-  message = params[["show_code"]],
-  dpi = params[["dpi"]],
-  tidy = FALSE,
-  crop = TRUE,
-  autodep = TRUE,
-  fig.align = "center",
-  fig.pos = "!H"
-)
-
 invisible(
   sapply(
     X = file.path(output_directory, c("tmp", "plink_qc", "vcf_qc")), 
@@ -110,75 +152,65 @@ invisible(
     mode = "0777"
   )
 )
-temp_directory <- file.path(output_directory, "tmp")
-dir.create(file.path(temp_directory, "1kgenome_small"), showWarnings = FALSE, recursive = TRUE, mode = "0777")
+temp <- file.path(output_directory, "tmp")
+dir.create(file.path(temp, "1kgenome_pruned"), showWarnings = FALSE, recursive = TRUE, mode = "0777")
 
-if (params[["cache"]]) {
-  dir.create(file.path(output_directory, "cache"), recursive = TRUE, showWarnings = FALSE, mode = "0777")
-  knitr::opts_chunk$set(cache = params[["cache"]], cache.path = paste0(output_directory, "/cache/"))
-}
+plink <- params[["bin_path"]][["plink"]]
 
 
-### Define theme
-ggplot2::theme_set(ggplot2::theme_light(base_size = params[["gg_fontsize"]]))
+### Define theme ===================================================================================
+ggplot2::theme_set(
+  ggplot2::theme_light(base_size = 11) +
+    ggplot2::theme(
+      plot.title = ggtext::element_markdown(), 
+      plot.title.position = "plot", 
+      plot.subtitle = ggtext::element_markdown(face = "italic", size = ggplot2::rel(0.8)),
+      plot.caption = ggtext::element_markdown(face = "italic", size = ggplot2::rel(0.5)), 
+      plot.caption.position = "plot",
+      axis.text.x = ggtext::element_markdown(), 
+      axis.text.x.top = ggtext::element_markdown(), 
+      axis.text.y = ggtext::element_markdown(), 
+      legend.box.just = "left", 
+      legend.key.size = ggplot2::unit(0.5, "lines"), 
+      legend.text = ggtext::element_markdown(size = ggplot2::rel(0.5))
+    )
+)
 
 
-### Additional functions
-pval_trans <- function() {
-  neglog10_breaks <- function(n = 5) {
-    function(x) {
-      rng <- -log(range(x, na.rm = TRUE), base = 10)
-      min <- 0
-      max <- floor(rng[1])
-      if (max == min) {
-        10^-min
-      } else {
-        by <- floor((max - min) / n) + 1
-        10^-seq(min, max, by = by)
-      }
-    }
-  }
-  scales::trans_new(
-    name = "pval",
-    transform = function(x) {-log(x, 10)},
-    inverse = function(x) {10^-x},
-    breaks = neglog10_breaks(),
-    format = function(x) {
-      parse(
-        text = gsub("e", " %*% 10^", gsub("1e+00", "1", scales::scientific_format()(x), fixed = TRUE))
-      )
-    },
-    domain = c(0, 1)
-  )
-}
+### knitr settings =================================================================================
+knitr::opts_chunk$set(
+  results = "asis",
+  size = "small",
+  include = TRUE,
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  dpi = 120,
+  tidy = FALSE,
+  crop = TRUE,
+  autodep = TRUE,
+  fig.align = "center",
+  fig.pos = "!H"
+)
 ```
 
 ```{r data}
-cat(
-  "Data from:", dirname(params[["input_files"]]), 
-  file = file.path(params[["output_directory"]], "README.md")
-)
-
 if (length(list.files(dirname(params[["input_files"]]), pattern = ".bed")) != 0) {
-  system(command = paste(
-    params[["bin_path"]][["plink"]], 
+  sys(paste(plink, 
     "--bfile", params[["input_files"]], 
     "--snps-only", 
     "--make-bed",
-    "--out", file.path(temp_directory, "raw_data")
-  ), ignore.stdout = TRUE, ignore.stderr = TRUE)
+    "--out", file.path(temp, "data")
+  ))
 } else {
-  system(command = paste(
-    params[["bin_path"]][["plink"]], 
+  sys(paste(plink, 
     "--file", params[["input_files"]], 
     "--snps-only", 
     "--make-bed",
-    "--out", file.path(temp_directory, "raw_data")
-  ), ignore.stdout = TRUE, ignore.stderr = TRUE)
+    "--out", file.path(temp, "data")
+  ))
 }
 ```
-
-
 
 # Parameters
 
@@ -202,244 +234,176 @@ if (length(list.files(dirname(params[["input_files"]]), pattern = ".bed")) != 0)
     `` `r params[["pca_threshold"]]` ``
 * Minor allele frequency (MAF) threshold: 
     `` `r params[["maf_threshold"]]` ``
-* Hardy-Weinberg equilibrium pvalue: 
+* Hardy-Weinberg equilibrium p-value: 
     `` `r scales::scientific(params[["hwe_pvalue"]])` ``
 * Mendelian error rate threshold:
-    + Max per-trio error rate: 
+    + Maximum per-trio error rate: 
         `` `r if (params[["includes_relatives"]]) params[["mendelian_samples"]] else "not applicable"` `` 
-    + Max per-variant error rate: 
+    + Ma per-variant error rate: 
         `` `r if (params[["includes_relatives"]]) params[["mendelian_snp"]] else "not applicable"` `` 
 
-
-
-# Cohort overview
+# Cohort Overview
 
 Genotyped using `r if (is.null(params[["array"]])) "unspecified" else params[["array"]]` array.
 
 ```{r cohort-overview, include = FALSE}
-samples <- dplyr::mutate_at(
-  .tbl = utils::read.table(file.path(temp_directory, "raw_data.fam")), 
-  .vars = 1:2, 
-  .funs = as.character
+fam_data <- data.table::fread(file.path(temp, "data.fam"))
+fam_data[, (1:2) := lapply(.SD, as.character), .SDcols = 1:2]
+data.table::setnames(
+  x = fam_data, 
+  old = sprintf("V%d", 1:ncol(fam_data)), 
+  new = c("FID", "IID", "father_id", "mother_id", "sex", "phenotype")
 )
 
-samples_duplicated <- table(factor(
-  x = table(gsub("[_-][^-_]*$", "", samples[[2]]))==2,
-  levels = c(FALSE, TRUE)
-))[["TRUE"]]
+samples_duplicated <- anyDuplicated(gsub("[_-][^-_]*$", "", fam_data[["IID"]]))
 
-snps_number <- nrow(data.table::fread(input = file.path(temp_directory, "raw_data.bim"), select = 1))
+snps_number <- nrow(data.table::fread(input = file.path(temp, "data.bim"), select = 1))
 
-cohort_details <- file.path(dirname(params[["input_files"]]), "Details_Cohorts.xlsx")
-if (file.exists(cohort_details)) {
-  recruit_centre <- readxl::read_xlsx(path = cohort_details, sheet = 1) %>% 
-    dplyr::select(Sample.Name = 1, Cohort = 2, Gender = 3) %>%
-    dplyr::filter(Sample.Name %in% !!samples[[2]]) %>% 
-    dplyr::mutate(Sample.Name = as.character(Sample.Name))
-} else {
-  recruit_centre <- samples %>%
-    dplyr::select(Sample.Name = 2, Gender = 5) %>%
-    dplyr::mutate(Cohort = !!params[["cohort_name"]]) %>%
-    dplyr::mutate(Sample.Name = as.character(Sample.Name))
-}
-
-recruit_centre_table <- recruit_centre %>%
-  dplyr::mutate(Gender = factor(Gender, levels = c(1, 2, 0))) %>% 
-  dplyr::count(Cohort, Gender, .drop = FALSE) %>% 
-  tidyr::pivot_wider(names_from = "Gender", values_from = "n") %>% 
-  dplyr::rowwise() %>% 
-  dplyr::mutate(Total = sum(c(`0`, `1`, `2`))) %>% 
-  dplyr::rename(
-    Male = `1`,
-    Female = `2`,
-    Unspecified = `0`
-  ) %>%
-  dplyr::ungroup() %>% 
-  dplyr::add_row(
-    Cohort = "ALL", 
-    Total = sum(.$Total),
-    Male = sum(.$Male),
-    Female = sum(.$Female),
-    Unspecified = sum(.$Unspecified)
-  )
+fam_data[, cohort := params[["cohort_name"]]]
+fam_data[, sex_fct := factor(sex, levels = c(1, 2, 0), labels = c("Male", "Female", "Unspecified"))]
 ```
 
 PLINK files includes:
 
-* **`r scales::comma(nrow(recruit_centre))`** samples  
-    + Note: **`r scales::comma(samples_duplicated)`** samples seemed to have duplicates
-* **`r scales::comma(snps_number)`** variants
+* **`r comma(nrow(fam_data))`** samples.  
+    + **Note:** **`r comma(samples_duplicated)`** samples seemed to have duplicates.
+* **`r comma(snps_number)`** variants.
 
 ```{r cohort-overview-table}
-recruit_centre_table %>% 
-  gt::gt(auto_align = "center") %>% 
+fam_data[, .N, by = c("cohort", "sex_fct")][, .(sex_fct, N)] %>% 
+  gt::gt(auto_align = "center") %>%
+  gt::tab_header(
+    title = "Samples Available", 
+    subtitle = gt::md(paste0("*", params[["cohort_name"]], "*"))
+  ) %>%
+  gt::fmt_number(columns = "N", decimals = 0) %>% 
+  gt::grand_summary_rows(
+    columns = gt::vars(N),
+    fns = list(Total = ~sum(.)),
+    formatter = gt::fmt_number,
+    decimals = 0
+  ) %>% 
+  gt::cols_label(sex_fct = "Sex") %>% 
   gt::opt_row_striping() %>% 
-  gt::tab_header(title = "Number of samples per cohorts.") %>%
-  gt::fmt_number(columns = 2:ncol(recruit_centre_table), decimals = 0)
+  gt::opt_all_caps() %>% 
+  print()
 ```
-
-
 
 # Sample-based QC {#sample-qc}
 
+## Sample Call Rate
 
-## Sample call rate
+Call rate was computed using the `--missing` command in PLINK. 
 
-```{r sample-call-rate-01, include = FALSE}
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "raw_data"), 
+```{r sample-call-rate}
+sys(paste(plink, 
+  "--bfile", file.path(temp, "data"), 
   "--missing", 
-  "--out", file.path(temp_directory, "raw_data")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
+  "--out", file.path(temp, "data")
+))
 
-callrate_samples <- data.table::fread(file.path(temp_directory, "raw_data.imiss")) %>%
-  dplyr::mutate_at(.vars = c("FID", "IID"), as.character) %>% 
-  dplyr::arrange(F_MISS) %>%
-  dplyr::mutate(labs = ifelse(F_MISS > 1 - params[["callrate_samples"]], IID, NA))
+callrate_samples <- data.table::fread(
+  file = file.path(temp, "data.imiss"), 
+  colClasses = c("FID" = "character", "IID" = "character")
+)[, labs := ifelse(F_MISS > 1 - params[["callrate_samples"]], IID, as.character(NA))][order(F_MISS)]
+samples_to_exclude <- callrate_samples[!is.na(labs), .(FID, IID)]
+samples_to_exclude[, QC := "Sample_Call_Rate"]
 
-samples_toexclude <- callrate_samples %>%
-  dplyr::filter(!is.na(labs)) %>%
-  dplyr::select(FID, IID) %>%
-  dplyr::mutate(QC = "Sample_Call_Rate")
-
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile ", file.path(temp_directory, "raw_data"), 
+sys(paste(plink, 
+  "--bfile", file.path(temp, "data"), 
   "--freq", 
-  "--out", file.path(temp_directory, "raw_data")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
+  "--out", file.path(temp, "data")
+))
 
-freqsnp <- data.table::fread(file.path(temp_directory, "raw_data.frq"))
+freqsnp <- data.table::fread(file.path(temp, "data.frq"))
 
-utils::write.table(
-  x = dplyr::filter(freqsnp, MAF >= params[["maf_threshold"]])[["SNP"]],
-  file = file.path(temp_directory, "raw_data_maf_geq.txt"),
+data.table::fwrite(
+  x = freqsnp[MAF >= params[["maf_threshold"]], .(SNP)],
+  file = file.path(temp, "data_maf_geq.txt"),
   col.names = FALSE, 
   row.names = FALSE, 
   quote = FALSE
 )
 
-snp_maf_lower <- dplyr::filter(freqsnp, MAF < params[["maf_threshold"]])[["SNP"]]
+data_maf_lower <- freqsnp[MAF < params[["maf_threshold"]], .(SNP)]
+is_maf_lower <- nrow(data_maf_lower) > 0
 
-is_maf_lower <- length(snp_maf_lower) > 0
-
-if (is_maf_lower) {
-  utils::write.table(
-    x = snp_maf_lower, 
-    col.names = FALSE, row.names = FALSE, quote = FALSE,
-    file = file.path(temp_directory, "raw_data_maf_lower.txt")
-  )
-}
-
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "raw_data"), 
+sys(paste(plink, 
+  "--bfile", file.path(temp, "data"), 
   "--missing", 
-  "--extract", file.path(temp_directory, "raw_data_maf_geq.txt"), 
-  "--out", file.path(temp_directory, "raw_data_maf_geq")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
+  "--extract", file.path(temp, "data_maf_geq.txt"), 
+  "--out", file.path(temp, "data_maf_geq")
+))
 
-if (is_maf_lower) {
-  system(command = paste(
-    params[["bin_path"]][["plink"]], 
-    "--bfile", file.path(temp_directory, "raw_data"), 
-    "--missing", 
-    "--extract", file.path(temp_directory, "raw_data_maf_lower.txt"), 
-    "--out", file.path(temp_directory, "raw_data_maf_lower")
-  ), ignore.stdout = TRUE, ignore.stderr = TRUE)
-}
-
-callrate_samples_geq <- file.path(temp_directory, "raw_data_maf_geq.imiss") %>% 
-  data.table::fread() %>% 
-  dplyr::arrange(F_MISS)
-
+callrate_samples_geq <- data.table::fread(file.path(temp, "data_maf_geq.imiss"))[order(F_MISS)]
 prop_all <- sum(callrate_samples[, "F_MISS"] > 1 - params[["callrate_samples"]]) / nrow(callrate_samples)
-
 prop_maf_geq <- sum(callrate_samples_geq[, "F_MISS"] > 1 - params[["callrate_samples"]]) / nrow(callrate_samples_geq)
-
 prop_diff_maf_geq <- abs((prop_maf_geq - prop_all) / prop_all) >= 0.05
 
 if (is_maf_lower) {
-  callrate_samples_lower <- file.path(temp_directory, "raw_data_maf_lower.imiss") %>% 
-    data.table::fread() %>% 
-    dplyr::arrange(F_MISS)
+  data.table::fwrite(
+    x = data_maf_lower,
+    file = file.path(temp, "data_maf_lower.txt"),
+    col.names = FALSE, 
+    row.names = FALSE, 
+    quote = FALSE
+  )
+  sys(paste(plink, 
+    "--bfile", file.path(temp, "data"), 
+    "--missing", 
+    "--extract", file.path(temp, "data_maf_lower.txt"), 
+    "--out", file.path(temp, "data_maf_lower")
+  ))
+  callrate_samples_lower <- data.table::fread(file.path(temp, "data_maf_lower.imiss"))[order(F_MISS)]
   prop_maf_lower <- sum(callrate_samples_lower[, "F_MISS"] > 1 - params[["callrate_samples"]]) / nrow(callrate_samples_lower)
   prop_diff_maf_lower <- abs((prop_maf_lower - prop_all) / prop_all) >= 0.05
 } else {
   prop_diff_maf_lower <- NA
 }
 
+callrate_samples_exclude <- callrate_samples[F_MISS > 1 - params[["callrate_samples"]]][order(F_MISS)]
+callrate_samples_exclude[, Call_Rate := 1 - F_MISS]
+callrate_samples_exclude <- callrate_samples_exclude[, .(FID, IID, Call_Rate)]
+
+cat(
+  "\n\nA call rate lower than ", percent2(params[["callrate_samples"]]), " was observed for **",
+  comma(nrow(callrate_samples_exclude)), "** samples, leading to their exclusion.\n\n",
+  sep = ""
+)
+```
+
+```{r sample-call-rate-tab}
+cols_table <- c(
+  "Call Rate Threshold", 
+  "Samples to Exclude\n(All Variants)", 
+  paste0("Samples to Exclude\n(Variants with MAF ≥ ", params[["maf_threshold"]], ")")
+)
+
 callrate_thresholds <- sort(unique(c(params[["callrate_samples"]], 0.90, 0.95, 0.97, 0.98, 0.99)), decreasing = TRUE)
 
-callrate_thresholds_table <- cbind(
-  callrate_thresholds,
+cbind.data.frame(
+  percent2(callrate_thresholds),
   rowSums(sapply(callrate_samples[["F_MISS"]], ">", 1 - callrate_thresholds)),
   rowSums(sapply(callrate_samples_geq[["F_MISS"]], ">", 1 - callrate_thresholds))
-) %>%
-  as.data.frame() %>%
-  dplyr::mutate(callrate_thresholds = scales::percent(callrate_thresholds, accuracy = 0.01)) %>%
-  `colnames<-`(c(
-    "Call rate threshold", 
-    "Samples to exclude\n(all variants)", 
-    paste0("Samples to exclude\n(variants with MAF ≥ ", params[["maf_threshold"]],")")
-  ))
-
-callrate_samples_toexclude <- callrate_samples %>%
-  dplyr::filter(F_MISS > 1 - params[["callrate_samples"]]) %>%
-  dplyr::mutate(Call_Rate = 1 - F_MISS) %>%
-  dplyr::arrange(dplyr::desc(Call_Rate)) %>%
-  dplyr::select(FID, IID, Call_Rate)
-```
-
-Call rate was computed using the `--missing` command in PLINK. 
-
-A call rate lower than `r scales::percent(params[["callrate_samples"]], accuracy = 0.01)` was observed for **`r scales::comma(nrow(callrate_samples_toexclude))`** samples, leading to their exclusion.
-
-```{r sample-call-rate-02, eval = !is.na(prop_diff_maf_lower) & prop_diff_maf_lower}
-cat(
-  "Note: the sample-based call rate was different for ", 
-  "variants with MAF < ", params[["maf_threshold"]],
-  " (", scales::percent(prop_maf_lower, accuracy = 0.01), ") ", 
-  "compared to the call rate based on all variants ", 
-  "(", scales::percent(prop_all, accuracy = 0.01), ").\n\n", 
-  sep = ""
-)
-```
-
-```{r sample-call-rate-03, eval = !is.na(prop_diff_maf_geq) & prop_diff_maf_geq}
-cat(
-  "Note: the sample-based call rate was different for ",
-  "variants with MAF ≥ ", params[["maf_threshold"]], 
-  " (", scales::percent(prop_maf_geq, accuracy = 0.01), ") ", 
-  "compared to the call rate based on all variants ",
-  "(", scales::percent(prop_all, accuracy = 0.01), ").\n\n", 
-  sep = ""
-)
-```
-
-```{r sample-call-rate-04}
-cols_table <- c(
-  "Call rate threshold", 
-  "Samples to exclude\n(all variants)", 
-  paste0("Samples to exclude\n(variants with MAF ≥ ", params[["maf_threshold"]],")")
-)
-callrate_thresholds_table %>% 
+) %>% 
+  `colnames<-`(cols_table) %>% 
   gt::gt(auto_align = "center") %>% 
-  gt::opt_row_striping() %>% 
-  gt::tab_header(
-    paste("Number of samples to exclude for", qdap::replace_number(length(callrate_thresholds)), "call rate thresholds.")
-  ) %>% 
+  gt::tab_header("Number Of Samples To Exclude Based On Call Rate Thresholds") %>% 
   gt::tab_style(
     style = gt::cell_fill(color = "dodgerblue", alpha = 0.5), 
     locations = gt::cells_body(
       columns = gt::vars(!!!cols_table), 
-      rows = `Call rate threshold` == scales::percent(params[["callrate_samples"]], accuracy = 0.01)
+      rows = `Call Rate Threshold` == percent2(params[["callrate_samples"]])
     )
-  )
+  ) %>% 
+  gt::opt_row_striping() %>% 
+  gt::opt_all_caps() %>% 
+  print()
+
+cat("\n")
 ```
 
-```{r sample-call-rate-05, fig.cap = "Sample call rate."}
+```{r sample-call-rate-fig}
 ggplot2::ggplot(
   data = callrate_samples,
   mapping = ggplot2::aes(x = length(F_MISS):1, y = 1 - F_MISS)
@@ -453,8 +417,10 @@ ggplot2::ggplot(
     mapping = ggplot2::aes(label = labs),
     min.segment.length = ggplot2::unit(0, "lines"),
     force = 10, 
-    alpha = 0.7, 
-    size = 2.5, 
+    fill = "white",
+    colour  = "firebrick2", 
+    segment.colour = "firebrick2", 
+    size = 3, 
     na.rm = TRUE
   ) +
   ggplot2::geom_hline(
@@ -462,104 +428,128 @@ ggplot2::ggplot(
     colour = "firebrick2", 
     linetype = 2
   ) +
-  ggplot2::scale_x_continuous(labels = scales::comma_format(accuracy = 1), trans = "log10") +
-  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.1)) +
-  ggplot2::labs(x = "Samples", y = "Call rate")
+  ggplot2::scale_x_continuous(labels = comma, trans = "log10") +
+  ggplot2::scale_y_continuous(
+    breaks = (function(n = 5, cr_thresh = params[["callrate_samples"]], ...) {
+      function(x) {
+        x <- x[is.finite(x)]
+        if (length(x) == 0) {
+          return(numeric())
+        }
+        rng <- range(x)
+        c(labeling::extended(rng[1], rng[2], n, ...), cr_thresh)
+      }
+    })(),
+    labels = (function(x, cr_thresh = params[["callrate_samples"]]) {
+      ifelse(x == cr_thresh, paste0("<b style = 'color:firebrick2;'>", percent1(x), "</b>"), percent1(x))
+    })
+  ) +
+  ggplot2::labs(x = "Number of Samples", y = "Call Rate", title = "Sample Call Rate")
 ```
 
-```{r sample-call-rate-06, eval = nrow(callrate_samples_toexclude) != 0}
-callrate_samples_toexclude %>% 
-  dplyr::mutate(Call_Rate = scales::percent(Call_Rate, accuracy = 0.01)) %>% 
+```{r sample-call-rate-exclude, eval = nrow(callrate_samples_exclude) != 0}
+callrate_samples_exclude %>% 
   gt::gt(auto_align = "center") %>% 
+  gt::fmt_percent("Call_Rate", incl_space = TRUE) %>% 
+  gt::cols_label(Call_Rate = "Call Rate") %>% 
+  gt::tab_header(paste(
+    "Samples To Be Excluded For A Call Rate Threshold Of", percent2(params[["callrate_samples"]])
+  )) %>% 
   gt::opt_row_striping() %>% 
-  gt::tab_header(
-    paste0(
-      "Samples to be excluded for a call rate threshold of ", 
-      scales::percent(params[["callrate_samples"]], accuracy = 0.01), 
-      "."
-    )
-  )
+  gt::opt_all_caps() %>% 
+  print()
 ```
 
-
-## Gender
-
-```{r gender-check-01}
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "raw_data"), 
-  "--check-sex",
-  "--out", file.path(temp_directory, "raw_data")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
-
-gender_file_check <- file.exists(file.path(temp_directory, "raw_data.sexcheck"))
-
-if (!gender_file_check) {
-  cat("Warning: gender check was not achieved, due to no polymorphic X chromosome in data.\n\n")
+```{r sample-call-rate-note}
+is_cr_note <- (!is.na(prop_diff_maf_lower) & prop_diff_maf_lower) | 
+  (!is.na(prop_diff_maf_geq) & prop_diff_maf_geq)
+if (is_cr_note) {
+  cat("**Note:**\n\n")
+  if (!is.na(prop_diff_maf_lower) & prop_diff_maf_lower) {
+    cat(
+      "* The sample-based call rate was different for ", 
+      "variants with MAF < ", params[["maf_threshold"]],
+      " (", percent2(prop_maf_lower), ") ", 
+      "compared to the call rate based on all variants ", 
+      "(", percent2(prop_all), ").\n\n", 
+      sep = ""
+    )
+  }
+  
+  if (!is.na(prop_diff_maf_geq) & prop_diff_maf_geq) {
+    cat(
+      "* The sample-based call rate was different for ",
+      "variants with MAF ≥ ", params[["maf_threshold"]], 
+      " (", percent2(prop_maf_geq), ") ", 
+      "compared to the call rate based on all variants ",
+      "(", percent2(prop_all), ").\n\n", 
+      sep = ""
+    )
+  }
+  cat("\n")
 }
 ```
 
-```{r gender-check-02, eval = gender_file_check, include = FALSE}
-sexcheck <- data.table::fread(file.path(temp_directory, "raw_data.sexcheck")) %>%
-  dplyr::mutate_at(.vars = c("FID", "IID"), as.character) %>% 
-  dplyr::full_join(y = callrate_samples, by = c("FID", "IID")) %>%
-  dplyr::left_join(y = recruit_centre, by = c("IID" = "Sample.Name")) %>%
-  dplyr::mutate(
-    sex_discrepancy = Gender != SNPSEX,
-    STATUS = ifelse(sex_discrepancy | is.na(sex_discrepancy) | `F` >= 0.20 & `F` < 0.80, "PROBLEM", STATUS),
-    labs = ifelse(STATUS == "PROBLEM" & F_MISS < 1 - params[["callrate_samples"]], IID, NA)
-  )
+## Genotypic Sex (Homozygosity Rate)
 
-sexcheck_problem <- dplyr::filter(sexcheck, STATUS == "PROBLEM")
+The mean homozygosity rate across the X-chromosome was computed using the `--check-sex` command in PLINK.
 
-sexcheck_discrepancy <- sexcheck_problem %>%
-  dplyr::filter(sex_discrepancy) %>%
-  dplyr::select(FID, IID) %>% 
-  dplyr::mutate(QC = "Gender_Discrepancy")
+```{r sex-check}
+sys(paste(plink, 
+  "--bfile", file.path(temp, "data"), 
+  "--check-sex", min(params[["sex_threshold"]]), max(params[["sex_threshold"]]),
+  "--out", file.path(temp, "data")
+))
 
-sexcheck_missing <- sexcheck_problem %>%
-  dplyr::filter(is.na(sex_discrepancy)) %>%
-  dplyr::select(FID, IID) %>% 
-  dplyr::mutate(QC = "Gender_Missing")
+sex_file_check <- file.exists(file.path(temp, "data.sexcheck"))
 
-sexcheck_other <- sexcheck_problem %>%
-  dplyr::filter(!sex_discrepancy) %>%
-  dplyr::select(FID, IID) %>% 
-  dplyr::mutate(QC = "Gender_F")
+if (!sex_file_check) {
+  cat("**Warning:** sex check was not achieved, *i.e.*, no polymorphic X chromosome.\n\n")
+}
 
-samples_toexclude <- dplyr::bind_rows(
-  samples_toexclude,
+sexcheck <- merge(
+  x = data.table::fread(
+    file = file.path(temp, "data.sexcheck"), 
+    colClasses = c("FID" = "character", "IID" = "character")
+  ),
+  y = callrate_samples, 
+  by = c("FID", "IID"), 
+  all = TRUE
+)
+sexcheck <- merge(x = sexcheck, y = fam_data, by = c("FID", "IID"), all.x = TRUE)
+sexcheck[, sex_discrepancy := sex != SNPSEX]
+sexcheck[, STATUS := ifelse(sex_discrepancy | is.na(sex_discrepancy) | `F` >= min(params[["sex_threshold"]]) & `F` < max(params[["sex_threshold"]]), "PROBLEM", STATUS)]
+sexcheck[, labs := ifelse(STATUS == "PROBLEM" & F_MISS < 1 - params[["callrate_samples"]], IID, NA)]
+
+sexcheck_problem <- sexcheck[STATUS == "PROBLEM"]
+
+sexcheck_discrepancy <- sexcheck_problem[(sex_discrepancy), .(FID, IID)][, QC := "Sex_Discrepancy"]
+sexcheck_missing <- sexcheck_problem[is.na(sex_discrepancy), .(FID, IID)][, QC := "Sex_Missing"]
+sexcheck_other <- sexcheck_problem[!(sex_discrepancy), .(FID, IID)][, QC := "Sex_F"] 
+
+samples_to_exclude <- rbind(
+  samples_to_exclude,
   sexcheck_discrepancy,
   sexcheck_missing,
   sexcheck_other
 )
-```
 
-The mean homozygosity rate across the X-chromosome was computed using the `--check-sex` command in PLINK.
-
-```{r gender-check-03, eval = gender_file_check & nrow(sexcheck_problem) > 0}
-cat(
-  paste0(
-    'For **', scales::comma(nrow(sexcheck_problem)), 
-    '** samples (including **', scales::comma(sum(sexcheck_problem[, "Gender"] == 0)), 
-    '**, with unspecified sex and **', scales::comma(sum(sexcheck_problem[, "SNPSEX"] == 0)), 
-    '** samples with undetermined genotypic sex), the gender discrepancy between genotyping data and reported gender could not be resolved, and have been flagged.',
-    '\n\n'
+if (sex_file_check & nrow(sexcheck_problem) > 0) {
+  cat(
+    paste0(
+      'For **', comma(nrow(sexcheck_problem)), '** samples ', 
+      '(including **', comma(sum(sexcheck_problem[, "sex"] == 0)), '**, with unspecified sex and **', comma(sum(sexcheck_problem[, "SNPSEX"] == 0)), '** samples with undetermined genotypic sex)',
+      ', the sex discrepancy between genotyping data and reported sex could not be resolved.',
+      '\n\n'
+    )
   )
-)
+}
 ```
 
-`r if (!file.exists(cohort_details)) cat("Note: Gender phenotype was read from PLINK files.\n")`
-
-```{r gender-check-04, eval = gender_file_check, fig.cap = paste("The homozygosity rate for each sample (estimated using X-chromosomal variants)", "plotted against the proportion of missing genotypes per sample.", "Male samples are expected to have a homozygosity rate greater than 80 %,", "female samples are expected to have a homozygosity rate less than 20 %.", "Samples for which gender information is discordant or missing were denoted by red cross.")}
+```{r sex-check-fig, eval = sex_file_check}
 ggplot2::ggplot(
-  data = tidyr::drop_na(sexcheck, `F`),
-  mapping = ggplot2::aes(
-    x = `F`, 
-    y = 1 - F_MISS, 
-    colour = STATUS, 
-    shape = sex_discrepancy
-  )
+  data = sexcheck[!is.na(`F`), ],
+  mapping = ggplot2::aes(x = `F`, y = 1 - F_MISS)
 ) +
   ggplot2::geom_rect(
     mapping = ggplot2::aes(xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = params[["callrate_samples"]]), 
@@ -575,384 +565,274 @@ ggplot2::ggplot(
   ) +
   ggplot2::annotate(
     geom = "rect",
-    xmin = -0.2, xmax = 0.2, ymin = -Inf, ymax = Inf, 
+    xmin = -0.2, xmax = min(params[["sex_threshold"]]), ymin = -Inf, ymax = Inf, 
     fill = "firebrick2",
     alpha = 0.2,
     colour = "transparent"
   ) +
   ggplot2::annotate(
     geom = "rect",
-    xmin = 0.8, xmax = 1, ymin = -Inf, ymax = Inf, 
+    xmin = max(params[["sex_threshold"]]), xmax = 1, ymin = -Inf, ymax = Inf, 
     fill = "dodgerblue",
     alpha = 0.2,
     colour = "transparent"
   ) +
-  ggplot2::geom_point(na.rm = TRUE) +
   ggplot2::geom_hline(yintercept = params[["callrate_samples"]], colour = "firebrick2", linetype = 2) +
+  ggplot2::geom_point(
+    data = ~ .x[!(sex_discrepancy)], 
+    na.rm = TRUE, 
+    shape = 1,
+    colour = scales::viridis_pal(begin = 0.5, end = 0.5)(1)
+  ) +
+  ggplot2::geom_point(
+    data = ~ .x[(sex_discrepancy)], 
+    na.rm = TRUE, 
+    shape = 3,
+    colour  = "firebrick2"
+  ) +
   ggrepel::geom_label_repel(
+    data = ~ .x[(sex_discrepancy)][, labs := if (sum(sex_discrepancy) > params[["max_labels"]]) NA else labs],
     mapping = ggplot2::aes(label = labs),
     min.segment.length = ggplot2::unit(0, "lines"),
     force = 10, 
-    alpha = 0.7, 
-    size = 2.5, 
+    fill = "white",
+    colour  = "firebrick2", 
+    segment.colour = "firebrick2", 
+    size = 3, 
     na.rm = TRUE
   ) +
-  ggplot2::scale_colour_manual(values = c(scales::viridis_pal(begin = 0.5, end = 0.5)(1), "firebrick2")) +
-  ggplot2::scale_shape_manual(values = c(1, 3)) +
-  ggplot2::scale_x_continuous(breaks = seq(0, 1, 0.2), labels = scales::percent_format(accuracy = 0.1)) +
-  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.1)) +
-  ggplot2::labs(x = "Homozygosity rate", y = "Call rate") +
+  ggplot2::scale_x_continuous(breaks = c(0, params[["sex_threshold"]], 1), labels = percent1) +
+  ggplot2::scale_y_continuous(
+    breaks = (function(n = 5, cr_thresh = params[["callrate_samples"]], ...) {
+      function(x) {
+        x <- x[is.finite(x)]
+        if (length(x) == 0) {
+          return(numeric())
+        }
+        rng <- range(x)
+        c(labeling::extended(rng[1], rng[2], n, ...), cr_thresh)
+      }
+    })(),
+    labels = (function(x, cr_thresh = params[["callrate_samples"]]) {
+      ifelse(x == cr_thresh, paste0("<b style = 'color:firebrick2;'>", percent1(x), "</b>"), percent1(x))
+    })
+  ) +
+  ggplot2::labs(
+    x = "Homozygosity Rate",
+    y = "Call Rate",
+    title = "Homozygosity Rate Based on X-chromosomal Variants",
+    subtitle = paste(
+      "The expected homozygosity rate range:",
+      "<b style = 'color:firebrick2;'>for female</b> and", 
+      "<b style = 'color:dodgerblue;'>for male</b>.<br>", 
+      "Samples for which sex information is discordant or missing are denoted by \"<b style = 'color:firebrick2;'>+</b>\"."
+    )
+  ) + 
   ggplot2::theme(legend.position = "none")
 ```
 
-
-## Heterozygosity
-
-```{r heterozygosity-01, include = FALSE}
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "raw_data"), 
-  "--het",
-  "--out", file.path(temp_directory, "raw_data_auto")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
-
-if (is_maf_lower) {
-  system(command = paste(
-    params[["bin_path"]][["plink"]], 
-    "--bfile", file.path(temp_directory, "raw_data"),
-    "--extract", file.path(temp_directory, "raw_data_maf_lower.txt"),
-    "--het",
-    "--out", file.path(temp_directory, "raw_data_maf_lower")
-  ), ignore.stdout = TRUE, ignore.stderr = TRUE)
-}
-
-heterozygosity <- data.table::fread(file.path(temp_directory, "raw_data_auto.het")) %>%
-  dplyr::mutate_at(.vars = c("FID", "IID"), as.character) %>% 
-  dplyr::rename(N.NM. = `N(NM)`, O.HOM. = `O(HOM)`, E.HOM. = `E(HOM)`) %>%
-  dplyr::full_join(y = callrate_samples, by = c("FID", "IID")) %>%
-  dplyr::group_by(F_MISS < 1 - params[["callrate_samples"]]) %>% 
-  dplyr::do(
-    dplyr::mutate(.,
-      hrate = (N.NM. - O.HOM.) / N.NM.,
-      colour = sqrt(
-        (hrate - mean(hrate, na.rm = TRUE))^2 + 
-          (F_MISS - mean(F_MISS, na.rm = TRUE))^2
-      ), 
-      labs = ifelse(
-        test = F_MISS < 1 - params[["callrate_samples"]] & ( 
-          hrate > mean(hrate, na.rm = TRUE) + stats::sd(hrate * params[["heterozygosity_threshold"]], na.rm = TRUE) | 
-            hrate < mean(hrate, na.rm = TRUE) - stats::sd(hrate * params[["heterozygosity_threshold"]], na.rm = TRUE)
-        ), 
-        yes = IID, 
-        no = NA
-      )
-    )
-  ) %>% 
-  dplyr::ungroup()
-
-if (is_maf_lower) {
-  heterozygosity_maf_lower <- data.table::fread(file.path(temp_directory, "raw_data_maf_lower.het")) %>%
-    dplyr::mutate_at(.vars = c("FID", "IID"), as.character) %>% 
-    dplyr::rename(N.NM. = `N(NM)`, O.HOM. = `O(HOM)`, E.HOM. = `E(HOM)`) %>%
-    dplyr::full_join(y = callrate_samples, by = c("FID", "IID")) %>%
-    dplyr::group_by(F_MISS < 1 - params[["callrate_samples"]]) %>% 
-    dplyr::do(
-      dplyr::mutate(.,
-        hrate = (N.NM. - O.HOM.) / N.NM.,
-        colour = sqrt((hrate - mean(hrate, na.rm = TRUE))^2 + (F_MISS - mean(F_MISS, na.rm = TRUE))^2), 
-        labs = ifelse(
-          test = F_MISS < 1 - params[["callrate_samples"]] & ( 
-            hrate > mean(hrate, na.rm = TRUE) + stats::sd(hrate * params[["heterozygosity_threshold"]], na.rm = TRUE) | 
-              hrate < mean(hrate, na.rm = TRUE) - stats::sd(hrate * params[["heterozygosity_threshold"]], na.rm = TRUE)
-          ), 
-          yes = IID, 
-          no = NA
-        )
-      )
-    ) %>% 
-  dplyr::ungroup()
-} else {
-  heterozygosity_maf_lower <- data.frame(matrix(
-    NA,
-    nrow = 0,
-    ncol = ncol(heterozygosity),
-    dimnames = list(NULL, colnames(heterozygosity))
-  ))
+```{r sex-check-tab, eval = sex_file_check}
+if (nrow(sexcheck_problem) > 0) {
+  sexcheck_problem[(sex_discrepancy), .(FID, IID, Phenotype = PEDSEX, Genotype = SNPSEX)] %>% 
+    gt::gt(auto_align = "center") %>% 
+    gt::tab_header("Samples To Be Checked") %>% 
+    gt::opt_row_striping() %>% 
+    gt::opt_all_caps() %>% 
+    print()
 }
 ```
 
-The observed heterozygosity rate per sample was computed using the formula  
+## Heterozygosity
+
+The observed heterozygosity rate per sample was computed using the formula:  
 (Number of non-missing genotypes N(NM) - Number of homozygous genotypes O(Hom)) / N(NM).
 
 N(NM) and O(Hom) were obtained using the `--het` command in PLINK.
 
-```{r heterozygosity-02, include = FALSE}
-p_heteR <- ggplot2::ggplot(
-  data = heterozygosity,
-  mapping = ggplot2::aes(x = 1 - F_MISS, y = hrate)
-) +
-  ggplot2::geom_rect(
-    mapping = ggplot2::aes(ymin = -Inf, ymax = Inf, xmin = -Inf, xmax = params[["callrate_samples"]]), 
-    fill = "grey95",
-    colour = "transparent"
-  ) +
-  ggplot2::geom_point(
-    mapping = ggplot2::aes(colour = colour),
-    shape = 1, 
-    na.rm = TRUE
-  ) +
-  ggplot2::geom_vline(
-    mapping = ggplot2::aes(xintercept = params[["callrate_samples"]]),
-    colour = "firebrick2", 
-    linetype = 2
-  ) +
-  ggplot2::geom_hline(
-    data = dplyr::filter(heterozygosity, F_MISS < 1 - params[["callrate_samples"]]),
-    mapping = ggplot2::aes(
-      yintercept = mean(hrate, na.rm = TRUE) - 
-        stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_threshold"]]
-    ),
-    colour = "firebrick2", 
-    linetype = 2
-  ) +
-  ggplot2::geom_hline(
-    data = dplyr::filter(heterozygosity, F_MISS < 1 - params[["callrate_samples"]]),
-    mapping = ggplot2::aes(
-      yintercept = mean(hrate, na.rm = TRUE) + 
-        stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_threshold"]]
-    ),
-    colour = "firebrick2", 
-    linetype = 2
-  ) +
-  ggrepel::geom_label_repel(
-    ggplot2::aes(label = labs),
-    min.segment.length = ggplot2::unit(0, "lines"),
-    force = 30, 
-    alpha = 0.7, 
-    size = 2.5, 
-    na.rm = TRUE
-  ) + 
-  ggplot2::scale_colour_viridis_c(begin = 0.2, end = 0.8, trans = "sqrt") +
-  ggplot2::labs(x = "Call rate", y = "Heterozygosity rate") +
-  ggplot2::theme(
-    axis.text.x = ggplot2::element_text(angle = 45, hjust = 1), 
-    legend.position = "none"
-  )
+```{r heterozygosity, include = FALSE}
+sys(paste(plink, 
+  "--bfile", file.path(temp, "data"), 
+  "--het",
+  "--out", file.path(temp, "data_het")
+))
+
+heterozygosity <- merge(
+  x = data.table::fread(
+    file = file.path(temp, "data_het.het"),
+    colClasses = c("FID" = "character", "IID" = "character"), 
+    check.names = TRUE
+  ), 
+  y = callrate_samples, 
+  by = c("FID", "IID"), 
+  all = TRUE
+)
+heterozygosity[, hrate := (N.NM. - O.HOM.) / N.NM., by = F_MISS < 1 - params[["callrate_samples"]]]
+heterozygosity[, colour := sqrt( (hrate - mean(hrate, na.rm = TRUE))^2 + (F_MISS - mean(F_MISS, na.rm = TRUE))^2 ), by = F_MISS < 1 - params[["callrate_samples"]]]
+heterozygosity[, 
+  labs := ifelse(
+    test = F_MISS < 1 - params[["callrate_samples"]] & ( 
+      hrate > mean(hrate, na.rm = TRUE) + stats::sd(hrate * params[["heterozygosity_threshold"]], na.rm = TRUE) | 
+        hrate < mean(hrate, na.rm = TRUE) - stats::sd(hrate * params[["heterozygosity_threshold"]], na.rm = TRUE)
+    ), 
+    yes = IID, 
+    no = as.character(NA)
+  ), 
+  by = F_MISS < 1 - params[["callrate_samples"]]
+]
+
+samples_to_exclude <- rbind(
+  samples_to_exclude,
+  heterozygosity[!is.na(labs), .(FID, IID)][, QC := "Heterozygosity_Check"]
+)
 
 if (is_maf_lower) {
-  p_heteR_maf_lower <- ggplot2::ggplot(
-    data = heterozygosity_maf_lower,
-    mapping = ggplot2::aes(x = 1 - F_MISS, y = hrate)
-  ) +
+  sys(paste(plink, 
+    "--bfile", file.path(temp, "data"),
+    "--extract", file.path(temp, "data_maf_lower.txt"),
+    "--het",
+    "--out", file.path(temp, "data_het_maf_lower")
+  ))
+
+  heterozygosity_maf_lower <- merge(
+    x = data.table::fread(
+      file = file.path(temp, "data_het_maf_lower.het"),
+      colClasses = c("FID" = "character", "IID" = "character"), 
+      check.names = TRUE
+    ), 
+    y = callrate_samples, 
+    by = c("FID", "IID"), 
+    all = TRUE
+  )
+  heterozygosity_maf_lower[, hrate := (N.NM. - O.HOM.) / N.NM., by = F_MISS < 1 - params[["callrate_samples"]]]
+  heterozygosity_maf_lower[, 
+    colour := sqrt( (hrate - mean(hrate, na.rm = TRUE))^2 + (F_MISS - mean(F_MISS, na.rm = TRUE))^2 ), 
+    by = F_MISS < 1 - params[["callrate_samples"]]
+  ]
+  heterozygosity_maf_lower[, 
+    labs := ifelse(
+      test = F_MISS < 1 - params[["callrate_samples"]] & ( 
+        hrate > mean(hrate, na.rm = TRUE) + stats::sd(hrate * params[["heterozygosity_threshold"]], na.rm = TRUE) | 
+          hrate < mean(hrate, na.rm = TRUE) - stats::sd(hrate * params[["heterozygosity_threshold"]], na.rm = TRUE)
+      ), 
+      yes = IID, 
+      no = as.character(NA)
+    ), 
+    by = F_MISS < 1 - params[["callrate_samples"]]
+  ]
+
+  samples_to_exclude <- rbind(
+    samples_to_exclude,
+    heterozygosity_maf_lower[!is.na(labs), .(FID, IID)][, QC := paste0("Heterozygosity_Check_maf_", params[["maf_threshold"]])]
+  )
+}
+```
+
+```{r heterozygosity-fig}
+plot_het <- function(data, params) {
+  ggplot2::ggplot(data = data[, labs := if (sum(!is.na(labs)) > params[["max_labels"]]) NA else labs], mapping = ggplot2::aes(x = 1 - F_MISS, y = hrate)) +
     ggplot2::geom_rect(
       mapping = ggplot2::aes(ymin = -Inf, ymax = Inf, xmin = -Inf, xmax = params[["callrate_samples"]]), 
       fill = "grey95",
       colour = "transparent"
     ) +
-    ggplot2::geom_point(
-      mapping = ggplot2::aes(colour = colour),
-      shape = 1, 
-      na.rm = TRUE
-    ) +
+    ggplot2::geom_point(mapping = ggplot2::aes(colour = colour), shape = 1, na.rm = TRUE) +
     ggplot2::geom_vline(
       mapping = ggplot2::aes(xintercept = params[["callrate_samples"]]),
       colour = "firebrick2", 
       linetype = 2
     ) +
     ggplot2::geom_hline(
-      data = dplyr::filter(heterozygosity_maf_lower, F_MISS < 1 - params[["callrate_samples"]]),
-      mapping = ggplot2::aes(
-        yintercept = mean(hrate, na.rm = TRUE) - 
-          stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_threshold"]]
-      ),
+      data = ~ .x[
+        F_MISS < 1 - params[["callrate_samples"]], 
+        .(yintercept = mean(hrate, na.rm = TRUE) - 
+          stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_threshold"]])
+      ],
+      mapping = ggplot2::aes(yintercept = yintercept),
       colour = "firebrick2", 
       linetype = 2
     ) +
     ggplot2::geom_hline(
-      data = dplyr::filter(heterozygosity_maf_lower, F_MISS < 1 - params[["callrate_samples"]]),
-      mapping = ggplot2::aes(
-        yintercept = mean(hrate, na.rm = TRUE) + 
-          stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_threshold"]]
-      ),
+      data = ~ .x[
+        F_MISS < 1 - params[["callrate_samples"]], 
+        .(yintercept = mean(hrate, na.rm = TRUE) +
+          stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_threshold"]])
+      ],
+      mapping = ggplot2::aes(yintercept = yintercept),
       colour = "firebrick2", 
       linetype = 2
     ) +
     ggrepel::geom_label_repel(
-      ggplot2::aes(label = labs),
+      data = ~ .x[!is.na(labs)],
+      mapping = ggplot2::aes(label = labs),
       min.segment.length = ggplot2::unit(0, "lines"),
-      force = 30, 
-      alpha = 0.7, 
-      size = 2.5, 
+      force = 10, 
+      fill = "white",
+      colour  = "firebrick2", 
+      segment.colour = "firebrick2", 
+      size = 3, 
       na.rm = TRUE
-    )+
+    ) + 
     ggplot2::scale_colour_viridis_c(begin = 0.2, end = 0.8, trans = "sqrt") +
-    ggplot2::labs(x = "Call rate", y = "Heterozygosity rate") +
-    ggplot2::theme(
-      axis.text.x = ggplot2::element_text(angle = 45, hjust = 1), 
-      legend.position = "none"
+    ggplot2::scale_x_continuous(
+      breaks = (function(n = 5, cr_thresh = params[["callrate_samples"]], ...) {
+        function(x) {
+          x <- x[is.finite(x)]
+          if (length(x) == 0) {
+            return(numeric())
+          }
+          rng <- range(x)
+          c(labeling::extended(rng[1], rng[2], n, ...), cr_thresh)
+        }
+      })(),
+      labels = (function(x, cr_thresh = params[["callrate_samples"]]) {
+        ifelse(x == cr_thresh, paste0("<b style = 'color:firebrick2;'>", percent1(x), "</b>"), percent1(x))
+      }),
+      guide = ggplot2::guide_axis(angle = 45)
     ) +
-    ggplot2::labs(
-      x = paste0("Call rate (MAF < ", params[["maf_threshold"]], ")"), 
-      y = "Heterozygosity rate"
-    ) +
-    ggplot2::theme(
-      axis.text.x = ggplot2::element_text(angle = 45, hjust = 1), 
-      legend.position = "none"
-    )
-} else {
-  p_heteR_maf_lower <- ggplot2::ggplot(data = heterozygosity_maf_lower) +
-    ggplot2::geom_blank() +
-    ggplot2::theme(
-      axis.line = ggplot2::element_blank(),
-      axis.text = ggplot2::element_blank(),
-      axis.ticks = ggplot2::element_blank(),
-      axis.title = ggplot2::element_blank(),
-      legend.position = "none",
-      panel.background = ggplot2::element_blank(),
-      panel.border = ggplot2::element_blank(),
-      panel.grid = ggplot2::element_blank(),
-      plot.background = ggplot2::element_blank()
-    ) +
-    ggplot2::annotate(
-      "text",
-      label = paste0("No variants found with MAF < ", params[["maf_threshold"]]),
-      x = mean(heterozygosity[["F_MISS"]], na.rm = TRUE),
-      y = mean(heterozygosity[["hrate"]], na.rm = TRUE)
-    )
+    ggplot2::labs(x = "Call Rate", y = "Heterozygosity Rate") +
+    ggplot2::theme(legend.position = "none")
 }
 
-samples_toexclude <- dplyr::bind_rows(
-  samples_toexclude,
-  heterozygosity %>%
-    dplyr::filter(!is.na(labs)) %>%
-    dplyr::select(FID, IID) %>% 
-    dplyr::mutate(QC = "Heterozygosity_Check")
-)
-
 if (is_maf_lower) {
-  samples_toexclude <- dplyr::bind_rows(
-    samples_toexclude,
-    heterozygosity_maf_lower %>%
-      dplyr::filter(!is.na(labs)) %>%
-      dplyr::select(FID, IID) %>% 
-      dplyr::mutate(QC = paste0("Heterozygosity_Check_maf_", params[["maf_threshold"]]))
+  patchwork::wrap_plots(plot_het(heterozygosity, params), plot_het(heterozygosity_maf_lower, params), ncol = 2) + 
+  patchwork::plot_annotation(
+    title = "Heterozygosity Rate",
+    tag_levels = "A", 
+    subtitle = paste0(
+      "The horizontal red lines (\"<b style = 'color:firebrick2;'>---</b>\") denote the ", params[["heterozygosity_threshold"]], 
+      " times the standard deviations (SD) from the mean heterozygosity rate,<br>",
+      "based on: <b>A</b>) all variants, <b>B</b>) variants with a MAF < ", params[["maf_threshold"]], "."
+    )
+  )
+} else {
+  patchwork::wrap_plots(plot_het(heterozygosity, params), ncol = 1) + 
+  patchwork::plot_annotation(
+    title = "Heterozygosity Rate", 
+    subtitle = paste0(
+      "The horizontal red lines (\"<b style = 'color:firebrick2;'>---</b>\") denote the ", params[["heterozygosity_threshold"]], 
+      " times the standard deviations (SD) from the mean heterozygosity rate, based on all variants."
+    )
   )
 }
 ```
 
-```{r heterozygosity-05, fig.height = 4.7 * 1.5, fig.cap = paste0("Heterozygosity rate against the call rate per sample. ", "A and C, the heterozygosity rate computed based on all variants. ", "B and D, the heterozygosity estimated from variants with a MAF < ", params[["maf_threshold"]], ". ", "The horizontal red lines denote the ", qdap::replace_number(params[["heterozygosity_threshold"]]), " times standard deviations (SD) from the mean heterozygosity rate ", "and were used to define outlying heterozygosity.", " SD was computed only on samples with a call rate greater than or equal to ", scales::percent(params[["callrate_samples"]], accuracy = 0.01), ".")}
-ggpubr::ggarrange(
-  p_heteR + 
-    ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 0.1)) +
-    ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.1)), 
-  p_heteR_maf_lower + 
-    ggplot2::scale_x_continuous(labels = scales::percent_format(accuracy = 0.1)) +
-    ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.1)), 
-  p_heteR + 
-    ggplot2::scale_x_continuous(
-      labels = scales::percent_format(accuracy = 0.1),
-      limits = c(params[["callrate_samples"]], NA)
-    ) +
-    ggplot2::scale_y_continuous(
-      labels = scales::percent_format(accuracy = 0.1),
-      limits = range(
-        c(
-          dplyr::filter(heterozygosity, F_MISS < 1 - params[["callrate_samples"]])[["hrate"]],
-          dplyr::filter(heterozygosity, F_MISS < 1 - params[["callrate_samples"]])[["hrate"]] %>% 
-            (function(x) {
-              c(
-                mean(x, na.rm = TRUE) + 
-                  stats::sd(x, na.rm = TRUE) * params[["heterozygosity_threshold"]],
-                mean(x, na.rm = TRUE) - 
-                  stats::sd(x, na.rm = TRUE) * params[["heterozygosity_threshold"]]
-              )
-            })(.)
-        )
-      )
-    ),
-  p_heteR_maf_lower + 
-    ggplot2::scale_x_continuous(
-      labels = scales::percent_format(accuracy = 0.1),
-      limits = c(params[["callrate_samples"]], NA)
-    ) +
-    ggplot2::scale_y_continuous(
-      labels = scales::percent_format(accuracy = 0.1),
-      limits = range(
-        c(
-          dplyr::filter(heterozygosity_maf_lower, F_MISS < 1 - params[["callrate_samples"]])[["hrate"]],
-          dplyr::filter(heterozygosity_maf_lower, F_MISS < 1 - params[["callrate_samples"]])[["hrate"]] %>% 
-            (function(x) {
-              c(
-                mean(x, na.rm = TRUE) + 
-                  stats::sd(x, na.rm = TRUE) * params[["heterozygosity_threshold"]],
-                mean(x, na.rm = TRUE) - 
-                  stats::sd(x, na.rm = TRUE) * params[["heterozygosity_threshold"]]
-              )
-            })(.)
-        )
-      )
-    ),
-  ncol = 2, 
-  nrow = 2, 
-  labels = LETTERS
-)
+```{r heterozygosity-tab, eval = nrow(heterozygosity[!is.na(labs)]) > 0}
+heterozygosity[!is.na(labs), .(FID, IID, O.HOM., E.HOM., N.NM., hrate)] %>% 
+  gt::gt(auto_align = "center") %>% 
+  gt::tab_header(paste(
+    "Samples To Be Excluded For An Heterozygosity Rate Higher Than", params[["heterozygosity_threshold"]], 
+    "Times The Standard Deviations From The Mean Heterozygosity Rate."
+  )) %>% 
+  gt::opt_row_striping() %>% 
+  gt::opt_all_caps() %>% 
+  print()
 ```
-
 
 ## Relatedness
 
-`r if (params[["includes_relatives"]]) cat("Not applicable.\n\n")`
+`r if (params[["includes_relatives"]]) cat("**Note:** Not applicable.\n\n")`
 
-```{r relatedness-01, eval = !params[["includes_relatives"]], include = FALSE}
-## Pruning Data
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "raw_data"), 
-  "--autosome", 
-  "--set-hh-missing", 
-  "--maf", params[["maf_threshold"]], 
-  "--r2", 
-  "--ld-window-r2 0.2", 
-  "--ld-window-kb 50", 
-  "--make-bed",
-  "--out", file.path(temp_directory, "raw_data_pruned")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
-
-raw_data_pruned <- data.table::fread(file.path(temp_directory, "raw_data_pruned.fam"))
-max_n_pairs <- nrow(raw_data_pruned) * (nrow(raw_data_pruned) - 1 ) / 2
-
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "raw_data_pruned"), 
-  "--freq", 
-  "--out ", file.path(temp_directory, "raw_data_pruned")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
-
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "raw_data_pruned"), 
-  "--read-freq", file.path(temp_directory, "raw_data_pruned.frq"), 
-  "--genome", 
-  "--min", params[["IBD_threshold"]],  
-  "--out", file.path(temp_directory, "raw_data_pruned_Fast")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
-
-relatedness <- data.table::fread(file.path(temp_directory, "raw_data_pruned_Fast.genome")) %>%
-  dplyr::distinct() %>%
-  dplyr::mutate(PI_HAT = as.numeric(PI_HAT)) %>% 
-  dplyr::mutate_at(.vars = dplyr::vars(dplyr::matches("FID|IID")), .funs = as.character) %>% 
-  dplyr::anti_join(
-    y = samples_toexclude, 
-    by = c("FID1" = "FID", "IID1" = "IID")
-  ) %>% 
-  dplyr::anti_join(
-    y = samples_toexclude, 
-    by = c("FID2" = "FID", "IID2" = "IID")
-  )
-```
-
-In order to identify pairs of samples (N = `r scales::comma(nrow(raw_data_pruned))`, 
-Pairs = `r scales::comma(max_n_pairs)`) who look too similar to each other, 
+In order to identify pairs of samples who look too similar to each other, 
 pairwise IBD (identity by descent) was computed, using the `--genome` command in PLINK.
 
 Prior to the analysis, the dataset was pruned to exclude high-LD-regions, 
@@ -962,244 +842,259 @@ If the samples in the cohort **`r params[["cohort_name"]]`** are not supposed to
 the expected pairwise $\hat{\pi}$ ("PI_HAT") should be less than `r params[["IBD_threshold"]]`.  
 Pairs of sample with $\hat{\pi}$ ("PI_HAT") greater than `r params[["IBD_threshold"]]` were flagged.
 
-```{r relatedness-02, eval = !params[["includes_relatives"]]}
-data.frame(table(cut(
-  relatedness[["PI_HAT"]],
-  breaks = c(params[["IBD_threshold"]], 0.3, 0.4, 0.6, 0.8, 1),
-  include.lowest = TRUE
-))) %>%
-  `colnames<-`(c("IBD windows", "Pair count")) %>%
-  dplyr::mutate(
-    `IBD windows` = paste0(
-      `IBD windows`,
-      c(" = Second degree relatives", "", " = First degree relatives", "", " = MZ twins/duplicates")
+```{r relatedness, eval = !params[["includes_relatives"]], include = FALSE}
+## Pruning Data
+sys(paste(plink, 
+  "--bfile", file.path(temp, "data"), 
+  "--autosome", 
+  "--set-hh-missing", 
+  "--maf", params[["maf_threshold"]], 
+  "--r2", 
+  "--ld-window-r2 0.2", 
+  "--ld-window-kb 50", 
+  "--make-bed",
+  "--out", file.path(temp, "data_pruned")
+))
+
+sys(paste(plink, 
+  "--bfile", file.path(temp, "data_pruned"), 
+  "--freq", 
+  "--out ", file.path(temp, "data_pruned")
+))
+
+sys(paste(plink, 
+  "--bfile", file.path(temp, "data_pruned"), 
+  "--read-freq", file.path(temp, "data_pruned.frq"), 
+  "--genome", 
+  "--min", params[["IBD_threshold"]],  
+  "--out", file.path(temp, "data_pruned_freq")
+))
+
+relatedness <- unique(
+  data.table::fread(
+    file = file.path(temp, "data_pruned_freq.genome"), 
+    colClasses = c(
+      "FID1" = "character", "IID1" = "character", 
+      "FID2" = "character", "IID2" = "character",
+      "PI_HAT" = "numeric"
     )
-  ) %>% 
-  gt::gt(auto_align = "center") %>% 
-  gt::opt_row_striping() %>% 
-  gt::tab_header(paste0(
-    'The distribution of "PI_HAT" (proportion of IBD) for related samples in the dataset ',
-    "(IBD ≥ ", params[["IBD_threshold"]], ")."
-  ))
+  )
+)
+relatedness <- relatedness[!paste(FID1, IID1, sep = "_") %in% samples_to_exclude[, paste(FID, IID, sep = "_")], ]
+relatedness <- relatedness[!paste(FID2, IID2, sep = "_") %in% samples_to_exclude[, paste(FID, IID, sep = "_")], ]
 ```
 
-```{r relatedness-03, eval = !params[["includes_relatives"]]}
-related_samples <- relatedness %>%
-  dplyr::select(FID1, IID1, FID2, IID2, PI_HAT) %>%
-  dplyr::left_join(
-    callrate_samples %>%
-      dplyr::select(FID, IID, F_MISS) %>%
-      dplyr::mutate_at(.vars = 1:2, as.character),
-    by = c("FID1" = "FID", "IID1" = "IID")
-  ) %>%
-  dplyr::left_join(
-    callrate_samples %>%
-      dplyr::select(FID, IID, F_MISS) %>%
-      dplyr::mutate_at(.vars = 1:2, as.character),
-    by = c("FID2" = "FID", "IID2" = "IID"),
-    suffix = c("1", "2")
-  ) %>%
-  dplyr::mutate(
-    Call_Rate1 = scales::percent(1 - F_MISS1, accuracy = 0.01),
-    Call_Rate2 = scales::percent(1 - F_MISS2, accuracy = 0.01)
-  ) %>%
-  dplyr::select(-F_MISS1, -F_MISS2) %>% 
-  dplyr::arrange(dplyr::desc(PI_HAT))
+```{r relatedness-tab, eval = !params[["includes_relatives"]]}
+relatedness_tab <- relatedness[, .N, by = cut(
+  x = PI_HAT,
+  breaks = c(params[["IBD_threshold"]], 0.3, 0.4, 0.6, 0.8, 1),
+  include.lowest = TRUE
+)][order(cut)]
+
+relatedness_tab[, 
+  cut := factor(cut, levels = levels(cut), labels = paste0(
+    levels(cut),
+    c(" = Second Degree Relatives", "", " = First Degree Relatives", "", " = MZ Twins/Duplicates")
+  ))
+]
+
+if (nrow(relatedness_tab) > 0) {
+  relatedness_tab %>% 
+    gt::gt(auto_align = "center") %>% 
+    gt::cols_label(cut = "IBD Windows", N = "Pair Count") %>% 
+    gt::tab_header(paste0(
+      'The Distribution Of "PI_HAT" (Proportion Of IBD) For Related Samples In The Dataset ',
+      "(IBD ≥ ", params[["IBD_threshold"]], ")"
+    )) %>% 
+    gt::opt_row_striping() %>% 
+    gt::opt_all_caps() %>% 
+    print()
+}
+
+related_samples <- merge(
+  x = relatedness[, .(FID1, IID1, FID2, IID2, PI_HAT)],
+  y = callrate_samples[, .(FID, IID, F_MISS)],
+  by.x = c("FID1", "IID1"),
+  by.y = c("FID", "IID")
+)
+related_samples <- merge(
+  x = related_samples,
+  y = callrate_samples[, .(FID, IID, F_MISS)],
+  by.x = c("FID2", "IID2"),
+  by.y = c("FID", "IID"), 
+  suffixes = c("1", "2")
+)
+related_samples[, Call_Rate1 := percent2(1 - F_MISS1)]
+related_samples[, Call_Rate2 := percent2(1 - F_MISS2)]
+related_samples <- related_samples[, .SD, .SDcols = !c("F_MISS1", "F_MISS2")][order(-PI_HAT), ]
+related_samples[,
+  IBD := cut(
+    x = PI_HAT,
+    breaks = c(params[["IBD_threshold"]], 0.3, 0.4, 0.6, 0.8, 1),
+    include.lowest = TRUE
+  )
+]
+related_samples[, 
+  IBD := factor(IBD, levels = levels(IBD), labels = paste0(
+    levels(IBD),
+    c(" = Second Degree Relatives", "", " = First Degree Relatives", "", " = MZ Twins/Duplicates")
+  ))
+]
 
 if (nrow(related_samples) != 0) {
   related_samples %>% 
-    as.data.frame() %>% 
-    dplyr::mutate(
-      IBD = cut(PI_HAT, breaks = c(params[["IBD_threshold"]], 0.3, 0.4, 0.6, 0.8, 1), include.lowest = TRUE),
-      IBD = factor(
-        x = IBD,
-        levels = levels(IBD),
-        labels = paste0(levels(IBD), c(" = Second degree relatives", "", " = First degree relatives", "", " = MZ twins/duplicates"))
-      )
-    ) %>% 
     gt::gt(groupname_col = "IBD", auto_align = "center") %>% 
-    gt::opt_row_striping() %>% 
-    gt::tab_header(paste0(
-      "Pairs of samples with a proportion of IBD higher than ", params[["IBD_threshold"]], "."
+    gt::tab_header(paste(
+      "Pairs Of Samples With A Proportion Of IBD Higher Than", params[["IBD_threshold"]]
     )) %>% 
+    gt::opt_row_striping() %>% 
+    gt::opt_all_caps() %>% 
     print()
+} else {
+  cat("\n\nNo pairs of samples found with a proportion of IBD higher than", params[["IBD_threshold"]], ".\n\n")
 }
 
-if (dplyr::n_distinct(dplyr::select(recruit_centre, Cohort)) > 1) {
-  cross_cohorts_IBD <- relatedness %>%
-    dplyr::select(FID1, IID1, FID2, IID2, PI_HAT) %>%
-    dplyr::left_join(
-      y = dplyr::select(recruit_centre, -Gender),
-      by = c("IID1" = "Sample.Name")
-    ) %>%
-    dplyr::left_join(
-      y = dplyr::select(recruit_centre, -Gender),
-      by = c("IID2" = "Sample.Name"),
-      suffix = c("1", "2")
-    ) %>%
-    dplyr::filter(Cohort1 != Cohort2) %>%
-    dplyr::arrange(dplyr::desc(PI_HAT))
-  
-  if (nrow(cross_cohorts_IBD) > 0) {
-    cat(
-      Hmisc::capitalize(qdap::replace_number(nrow(cross_cohorts_IBD))), 
-      "cross-cohort IBDs was found in the dataset.\n\n"
-    )
-    
-    cross_cohorts_IBD %>% 
-      gt::gt(auto_align = "center") %>% 
-      gt::opt_row_striping() %>% 
-      gt::tab_header("Cross cohort related sample pairs.") %>% 
-    print()
-  } else {
-    cat("No cross-cohort IBDs was found in the dataset.\n\n")
-  }
-}
-
-samples_toexclude <- dplyr::bind_rows(
-  samples_toexclude,
-  relatedness %>%
-    dplyr::filter(PI_HAT >= params[["IBD_threshold"]]) %>% 
-    dplyr::select(dplyr::matches("FID|IID")) %>% 
-    tidyr::unite(col = FID_IID1, FID1, IID1, sep = "_-_") %>% 
-    tidyr::unite(col = FID_IID2, FID2, IID2, sep = "_-_") %>% 
-    tidyr::gather(key = "FID_IID", value = "value") %>% 
-    tidyr::separate(col = "value", into = c("FID", "IID"), sep = "_-_") %>% 
-    dplyr::select(-FID_IID) %>% 
-    dplyr::distinct(FID, IID) %>% 
-    dplyr::mutate(QC = "Relatedness")
+samples_to_exclude <- rbind(
+  samples_to_exclude,
+  unique(rbind(
+    relatedness[PI_HAT >= params[["IBD_threshold"]], .(FID = FID1, IID = IID1)],
+    relatedness[PI_HAT >= params[["IBD_threshold"]], .(FID = FID2, IID = IID2)]
+  ))[, QC := "Relatedness"]
 )
 ```
 
+## Mendel Errors
 
-## Sample Mendel errors
+The sample-wise Mendel error was estimated using the `--mendel` command in PLINK.  
+The per-trio error rate threshold is `r params[["mendelian_samples"]]`.
 
-```{r imendel-error-00}
-if (!params[["includes_relatives"]]) cat("Not applicable.\n\n")
+```{r imendel-error}
+if (!params[["includes_relatives"]]) cat("**Note:** Not applicable.\n\n")
 
 imendel_file_check <- params[["includes_relatives"]]
 ```
 
-```{r imendel-error-01, eval = params[["includes_relatives"]]}
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "raw_data"), 
+```{r imendel-error-tab, eval = params[["includes_relatives"]]}
+sys(paste(plink, 
+  "--bfile", file.path(temp, "data"), 
   "--mendel",
-  "--out ", file.path(temp_directory, "raw_data") 
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
+  "--out ", file.path(temp, "data") 
+))
 
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "raw_data"), 
-  "--extract", file.path(temp_directory, "raw_data_maf_geq.txt"), 
+sys(paste(plink, 
+  "--bfile", file.path(temp, "data"), 
+  "--extract", file.path(temp, "data_maf_geq.txt"), 
   "--mendel", 
-  "--out", file.path(temp_directory, "raw_data_maf_geq")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
+  "--out", file.path(temp, "data_maf_geq")
+))
 
 if (is_maf_lower) {
-  system(command = paste(
-    params[["bin_path"]][["plink"]], 
-    "--bfile", file.path(temp_directory, "raw_data"), 
-    "--extract", file.path(temp_directory, "raw_data_maf_lower.txt"), 
+  sys(paste(plink, 
+    "--bfile", file.path(temp, "data"), 
+    "--extract", file.path(temp, "data_maf_lower.txt"), 
     "--mendel", 
-    "--out", file.path(temp_directory, "raw_data_maf_lower")
-  ), ignore.stdout = TRUE, ignore.stderr = TRUE)
+    "--out", file.path(temp, "data_maf_lower")
+  ))
 }
 
-imendel_file_check <- file.exists(file.path(temp_directory, "raw_data.imendel"))
+imendel_file_check <- file.exists(file.path(temp, "data.imendel"))
 
 if (!imendel_file_check) {
   cat("Mendel error rates check was not performed due to missing informations.\n\n")
+} else {
+  mendel_errors <- data.table::fread(
+    file = file.path(temp, "data.imendel"),
+    colClasses = c("FID" = "character", "IID" = "character")
+  ) 
+  mendel_errors[, percentage := N / snps_number]
+  mendel_errors[, labs := ifelse(percentage > params[["mendelian_samples"]], IID, NA)]
+  mendel_errors[, labs_fam := ifelse(percentage > params[["mendelian_samples"]], FID, NA)]
+  
+  mendel_errors_geq <- data.table::fread(file.path(temp, "data_maf_geq.imendel"))[, percentage := N / snps_number]
+  prop_maf_geq <- sum(mendel_errors_geq[["percentage"]] > params[["mendelian_samples"]]) / 
+    nrow(mendel_errors_geq)
+  prop_all <- sum(mendel_errors[["percentage"]] > params[["mendelian_samples"]]) / 
+    nrow(mendel_errors)
+  prop_diff_maf_geq <- abs((prop_maf_geq - prop_all) / prop_all) >= 0.05
+  
+  if (is_maf_lower) {
+    mendel_errors_lower <- data.table::fread(file.path(temp, "data_maf_lower.imendel"))[, percentage := N / snps_number]
+    prop_maf_lower <- sum(mendel_errors_lower[["percentage"]] > params[["mendelian_samples"]]) /
+      nrow(mendel_errors_lower)
+    prop_diff_maf_lower <- abs((prop_maf_lower - prop_all) / prop_all) >= 0.05
+  }
+  
+  cat(
+    "A total of ", comma(nrow(mendel_errors)), " samples ",
+    "(from ", unique(mendel_errors[, FID]), " families)",
+    " had a Mendel error rate higher than ", percent2(params[["mendelian_samples"]]), 
+    " and were flagged.",
+    "\n\n",
+    sep = ""
+  )
+  
+  prop_diff_maf <- (!is.na(prop_diff_maf_lower) & prop_diff_maf_lower) | 
+    (!is.na(prop_diff_maf_geq) & prop_diff_maf_geq)
+  if (prop_diff_maf) {
+    cat("**Note:**\n\n")
+    if (!is.na(prop_diff_maf_lower) & prop_diff_maf_lower) {
+      cat(
+        "    * the sample-wise Mendel error rate ratio was different for variants ",
+        "with MAF < ", params[["maf_threshold"]], 
+        " (", percent2(prop_maf_lower), ") ",
+        "compared to the Mendel error rate ratio for all variants ",
+        "(", percent2(prop_all), ").\n",
+        sep = ""
+      )
+    }
+    if (!is.na(prop_diff_maf_geq) & prop_diff_maf_geq) {
+      cat(
+        "    * the sample-wise Mendel error rate ratio was different for variants ",
+        "with MAF > ", params[["maf_threshold"]], 
+        " (", percent2(prop_maf_geq),") ",
+        "compared to Mendel error rate ratio for all variants ",
+        "(", percent2(prop_all), ").\n",
+        sep = ""
+      )
+    }
+    cat("\n")
+  }
+  
+  cols_table <- c(
+    "Mendel Error Rate", 
+    "Samples to Exclude\n(All Variants)", 
+    paste0("Samples to Exclude\n(Variants with MAF ≥ ", params[["maf_threshold"]], ")")
+  )
+  
+  mendel_thresholds <- sort(unique(c(params[["mendelian_samples"]], 0.05, 0.03, 0.02, 0.01)), decreasing = TRUE)
+  
+  cbind.data.frame(
+    percent2(mendel_thresholds),
+    rowSums(sapply(mendel_errors[["percentage"]], ">", 1 - mendel_thresholds)),
+    rowSums(sapply(mendel_errors_geq[["percentage"]], ">", 1 - mendel_thresholds))
+  ) %>% 
+    `colnames<-`(cols_table) %>% 
+    gt::gt(auto_align = "center") %>% 
+    gt::tab_header("Number Of Samples To Exclude Based On Mendel Error Rate Thresholds") %>% 
+    gt::tab_style(
+      style = gt::cell_fill(color = "dodgerblue", alpha = 0.5), 
+      locations = gt::cells_body(
+        columns = gt::vars(!!!cols_table), 
+        rows = `Call Rate Threshold` == percent2(params[["callrate_samples"]])
+      )
+    ) %>% 
+    gt::opt_row_striping() %>% 
+    gt::opt_all_caps() %>% 
+    print()
 }
 ```
 
-```{r imendel-error-02, eval = params[["includes_relatives"]] & imendel_file_check}
-mendel_errors <- data.table::fread(file.path(temp_directory, "raw_data.imendel")) %>%
-  dplyr::mutate_at(.vars = dplyr::vars(FID, IID), as.character) %>% 
-  dplyr::mutate(
-    percentage = N / snps_number,
-    labs = ifelse(percentage > params[["mendelian_samples"]], IID, NA),
-    labs_fam = ifelse(percentage > params[["mendelian_samples"]], FID, NA)
-  )
-
-# MAF >= 0.01
-mendel_errors_geq <- data.table::fread(file.path(temp_directory, "raw_data_maf_geq.imendel")) %>%
-  dplyr::mutate(percentage = N / snps_number)
-
-prop_maf_geq <- sum(mendel_errors_geq[["percentage"]] > params[["mendelian_samples"]]) / 
-  nrow(mendel_errors_geq)
-
-prop_all <- sum(mendel_errors[["percentage"]] > params[["mendelian_samples"]]) / 
-  nrow(mendel_errors)
-
-prop_diff_maf_geq <- abs((prop_maf_geq - prop_all) / prop_all) >= 0.05
-
-# MAF < 0.01
-if (is_maf_lower) {
-  mendel_errors_lower <- data.table::fread(file.path(temp_directory, "raw_data_maf_lower.imendel")) %>% 
-    dplyr::mutate(percentage = N / snps_number)
-  
-  prop_maf_lower <- sum(mendel_errors_lower[["percentage"]] > params[["mendelian_samples"]]) /
-    nrow(mendel_errors_lower)
-  
-  prop_diff_maf_lower <- abs((prop_maf_lower - prop_all) / prop_all) >= 0.05
-}
-
-cat(
-  "The sample-wise Mendel error was estimated using the `--mendel` command in PLINK.  ", "\n",
-  "The per-trio error rate threshold is ", params[["mendelian_samples"]], ".",
-  "\n\n",
-  "Figure \\@ref(fig:imendel-error-03) shows the Mendel error per sample.  ", "\n",
-  scales::comma(nrow(mendel_errors)), " samples (from ", dplyr::n_distinct(mendel_errors[["FID"]]), " families)",
-  " had a Mendel error rate higher than ", scales::percent(x = params[["mendelian_samples"]], accuracy = 0.01), 
-  " and were flagged.",
-  "\n\n",
-  sep = ""
-)
-
-if (!is.na(prop_diff_maf_lower) & prop_diff_maf_lower) {
-  cat(
-    "Sample-wise Mendel error rate ratio is different for variants ",
-      "with MAF < 0.01 (", scales::percent(prop_maf_lower, accuracy = 0.01), ") ",
-      "compared to Mendel error rate ratio for all variants ",
-      "(", scales::percent(prop_all, accuracy = 0.01), ").\n\n",
-    sep = ""
-  )
-}
-
-if (!is.na(prop_diff_maf_geq) & prop_diff_maf_geq) {
-  cat(
-    "Sample-wise Mendel error rate ratio is different for variants ",
-      "with MAF > 0.01 (", scales::percent(prop_maf_geq),") ",
-      "compared to Mendel error rate ratio for all variants ",
-      "(", scales::percent(prop_all, accuracy = 0.01), ").\n\n",
-    sep = ""
-  )
-}
-
-mendel_threshold <- sort(unique(c(params[["mendelian_samples"]], 0.05, 0.03, 0.02, 0.01)), decreasing = TRUE)
-
-cbind(
-  mendel_threshold,
-  rowSums(sapply(mendel_errors[["percentage"]], ">", mendel_threshold)),
-  rowSums(sapply(mendel_errors_geq[["percentage"]], ">", mendel_threshold))
-) %>%
-  as.data.frame() %>%
-  dplyr::mutate(mendel_threshold = scales::percent(x = mendel_threshold, accuracy = 0.01)) %>%
-  `colnames<-`(c("Sample Mendel error threshold", "Samples to exclude", "Samples to exclude (MAF > 0.01)")) %>% 
-  gt::gt(auto_align = "center") %>% 
-  gt::opt_row_striping() %>% 
-  gt::tab_header(paste0(
-    "Number of samples to exclude for", qdap::replace_number(length(mendel_threshold)), "call rate thresholds."
-  ))
-```
-
-```{r imendel-error-03, eval = params[["includes_relatives"]] & imendel_file_check, fig.cap = "Sample Mendel error rate."}
+```{r imendel-error-fig, eval = params[["includes_relatives"]] & imendel_file_check}
 ggplot2::ggplot(
-  data = dplyr::arrange(mendel_errors, percent),
+  data = mendel_errors[order(percentage)],
   mapping = ggplot2::aes(
     x = seq_len(nrow(mendel_errors)), 
-    y = percent
+    y = percentage
   )
 ) +
   ggplot2::geom_point(
@@ -1213,850 +1108,773 @@ ggplot2::ggplot(
     linetype = 2
   ) +
   ggrepel::geom_label_repel(
+    data = ~ .x[!is.na(labs)],
     mapping = ggplot2::aes(label = labs),
     min.segment.length = ggplot2::unit(0, "lines"),
-    segment.colour = "black", 
-    colour = "black",
     force = 10, 
-    alpha = 0.7, 
-    size = 2.5,
+    fill = "white",
+    colour  = "firebrick2", 
+    segment.colour = "firebrick2", 
+    size = 3, 
     na.rm = TRUE
   ) +
-  ggplot2::scale_x_continuous(labels = scales::comma_format(accuracy = 1), trans = "log10") +
-  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.1)) +
-  ggplot2::labs(x = "Samples", y = "Mendel Error Rate")
+  ggplot2::scale_x_continuous(labels = comma, trans = "log10") +
+  ggplot2::scale_y_continuous(
+    breaks = (function(n = 5, me_thresh = params[["mendelian_samples"]], ...) {
+      function(x) {
+        x <- x[is.finite(x)]
+        if (length(x) == 0) {
+          return(numeric())
+        }
+        rng <- range(x)
+        c(labeling::extended(rng[1], rng[2], n, ...), me_thresh)
+      }
+    })(),
+    labels = (function(x, me_thresh = params[["mendelian_samples"]]) {
+      ifelse(x == me_thresh, paste0("<b style = 'color:firebrick2;'>", percent1(x), "</b>"), percent1(x))
+    })
+  ) +
+  ggplot2::labs(
+    x = "Number of Samples", 
+    y = "Mendel Error Rate",
+    title = "Sample Mendel Error Rate"
+  )
 ```
 
-```{r imendel-error-04, eval = params[["includes_relatives"]] & imendel_file_check}
-mendel_errors_samples <- mendel_errors %>%
-  dplyr::filter(percentage > params[["mendelian_samples"]]) %>%
-  dplyr::select(FID, IID, percentage) %>%
-  dplyr::arrange(FID, IID) %>% 
-  dplyr::mutate(QC = "Sample_Mendel_Error")
+```{r imendel-error-exclude, eval = params[["includes_relatives"]] & imendel_file_check}
+mendel_errors_samples <- mendel_errors[percentage > params[["mendelian_samples"]], .(FID, IID)][, QC := "Sample_Mendel_Error"]
 
-if (nrow(mendel_errors_samples)>0) {
-  mendel_errors_samples %>% 
-    dplyr::mutate(
-      `Sample Mendel error rate` = scales::percent(x = percent, accuracy = 0.01)
-    ) %>% 
-    dplyr::select(-percent, -QC) %>% 
+if (nrow(mendel_errors_samples) > 0) {
+  mendel_errors_samples[, .(FID, IID, Sample_Mendel_Error)] %>% 
     gt::gt(auto_align = "center") %>% 
+    gt::fmt_percent("Sample_Mendel_Error", incl_space = TRUE) %>% 
+    gt::cols_label(Sample_Mendel_Error = "Sample Mendel Error Rate") %>% 
+    gt::tab_header(paste(
+      "Samples To Be Excluded For A Sample Mendel Error Rate Threshold Of", percent2(params[["callrate_samples"]]), 
+    )) %>% 
     gt::opt_row_striping() %>% 
-    gt::tab_header(paste0(
-      "Samples to be checked for max per-trio error rate at ", 
-        scales::percent(x = params[["mendelian_samples"]], accuracy = 0.01), "."
-    ))
+    gt::opt_all_caps() %>% 
+    print()
 }
 
-samples_toexclude <- dplyr::bind_rows(
-  samples_toexclude, 
+samples_to_exclude <- rbind(
+  samples_to_exclude, 
   mendel_errors_samples
 )
 ```
 
-
 ## Principal Component Analysis
 
+### Ancestry Inference
 
-### Population structure
+The data from the **`r params[["cohort_name"]]`** cohort was pruned using the following cut-offs:
 
-```{r population-01, include = FALSE}
-## Get Autosomal variants
-data.table::fread(file.path(temp_directory, "raw_data.bim")) %>%
-  dplyr::filter(V1 %in% seq(22)) %>%
-  dplyr::select(V2) %>%
-  utils::write.table(
-    file = file.path(temp_directory, "raw_data_auto.txt"),
-    quote = FALSE, 
-    col.names = FALSE, 
-    row.names = FALSE
-  )
+* Variants call rate > 90.00 %.
+* MAF ≥ `r params[["maf_threshold"]]`.
+* HWE > `r scientific(params[["hwe_pvalue"]])`.
+* Samples call rate > `r percent2(params[["callrate_samples"]])`.
+* Heterozygosity rate within `r params[["heterozygosity_threshold"]]` times the standard deviation from the mean heterozygosity rate.
 
-## Remove bad quality samples (Call Rate and Heterozygosity)
-samples_toexclude_pca <- samples_toexclude %>% 
-  dplyr::filter(grepl("Sample_Call_Rate|Heterozygosity_Check$", QC)) %>% 
-  dplyr::distinct(FID, IID) %>% 
-  dplyr::select(FID, IID)
+```{r ancestry-inference, include = FALSE}
+data.table::fwrite(
+  x = data.table::fread(file.path(temp, "data.bim"))[V1 %in% 1:22, .(V2)],
+  file = file.path(temp, "data.txt"),
+  quote = FALSE, 
+  col.names = FALSE, 
+  row.names = FALSE
+)
 
-utils::write.table(
-  x = samples_toexclude_pca,
-  file = file.path(temp_directory, "samples_toexclude_pca.txt"),
+samples_to_exclude_pca <- unique(samples_to_exclude[grepl("Sample_Call_Rate|Heterozygosity_Check$", QC), .(FID, IID)])
+
+data.table::fwrite(
+  x = samples_to_exclude_pca,
+  file = file.path(temp, "samples_to_exclude_pca.txt"),
   sep = "\t", 
   row.names = FALSE, 
   col.names = FALSE, 
   quote = FALSE
 )
 
-if (nrow(samples_toexclude_pca) > 0) {
-  system(command = paste(
-    params[["bin_path"]][["plink"]], 
-    "--bfile", file.path(temp_directory, "raw_data"),
-    "--remove", file.path(temp_directory, "samples_toexclude_pca.txt"),
-    "--extract", file.path(temp_directory, "raw_data_auto.txt"),
+if (nrow(samples_to_exclude_pca) > 0) {
+  sys(paste(plink, 
+    "--bfile", file.path(temp, "data"),
+    "--remove", file.path(temp, "samples_to_exclude_pca.txt"),
+    "--extract", file.path(temp, "data.txt"),
     "--snps-only",
     "--maf", params[["maf_threshold"]], 
     "--hwe", params[["hwe_pvalue"]], 
     "--geno 0.1", 
     "--make-bed",
-    "--out", file.path(temp_directory, "clean_data_tmp")
-  ), ignore.stdout = TRUE, ignore.stderr = TRUE)
+    "--out", file.path(temp, "data_pop")
+  ))
 } else {
-  system(command = paste(
-    params[["bin_path"]][["plink"]], 
-    "--bfile", file.path(temp_directory, "raw_data"), 
-    "--extract", file.path(temp_directory, "raw_data_auto.txt"),
+  sys(paste(plink, 
+    "--bfile", file.path(temp, "data"), 
+    "--extract", file.path(temp, "data.txt"),
     "--snps-only",
     "--maf", params[["maf_threshold"]], 
     "--hwe", params[["hwe_pvalue"]], 
     "--geno 0.1", 
     "--make-bed",
-    "--out", file.path(temp_directory, "clean_data_tmp")
-  ), ignore.stdout = TRUE, ignore.stderr = TRUE)
+    "--out", file.path(temp, "data_pop")
+  ))
 }
 
-## Extract 1kgenome data
-data.table::fread(file.path(temp_directory, "clean_data_tmp.bim")) %>%
-  dplyr::filter(!V4 %in% unique(V4[duplicated(V4)])) %>%
-  dplyr::select(V2) %>%
-  utils::write.table(
-    file = file.path(temp_directory, "clean_data_snp.txt"),
-    row.names = FALSE, 
+data.table::fwrite(
+  x = data.table::fread(file.path(temp, "data_pop.bim"))[
+    !paste(V1, V4) %in% unique(paste(V1, V4)[duplicated(paste(V1, V4))]) &
+      !V2 %in% unique(V2[duplicated(V2)]), 
+    .(V2)
+  ],
+  file = file.path(temp, "clean_data_snp.txt"),
+  row.names = FALSE, 
+  col.names = FALSE, 
+  quote = FALSE
+)
+
+invisible(parallel::mclapply(1:22, mc.cores = min(parallel::detectCores(), 22), function(i) {
+  sys(paste(plink, 
+    "--bfile", paste0(params[["ref1kg_genotypes"]], "Chr", i),
+    "--extract", file.path(temp, "clean_data_snp.txt"),
+    "--snps-only",
+    "--make-bed",
+    "--out", file.path(temp, file.path("1kgenome_pruned", sprintf("1kgenome_pruned_chr%02d_tmp", i)))
+  ))
+  data.table::fwrite(
+    x = data.table::fread(file.path(temp, file.path("1kgenome_pruned", sprintf("1kgenome_pruned_chr%02d_tmp.bim", i))))[duplicated(V2), .(V2)],
+    file = file.path(temp, file.path("1kgenome_pruned", sprintf("1kgenome_pruned_chr%02d_tmp.dupvar", i))),
     col.names = FALSE, 
+    row.names = FALSE, 
     quote = FALSE
   )
-
-parallel::mclapply(seq_len(22), mc.cores = min(params[["n_cores"]], 22), function(i) {
-  system(command = paste(
-    params[["bin_path"]][["plink"]], 
-    "--bfile", paste0(params[["ref1kg_genotypes"]], "Chr", i),
-    "--extract", file.path(temp_directory, "clean_data_snp.txt"), 
+  sys(paste(plink, 
+    "--bfile", file.path(temp, file.path("1kgenome_pruned", sprintf("1kgenome_pruned_chr%02d_tmp", i))),
+    "--exclude", file.path(temp, file.path("1kgenome_pruned", sprintf("1kgenome_pruned_chr%02d_tmp.dupvar", i))), 
     "--snps-only",
     "--make-bed", 
-    "--out", file.path(temp_directory, file.path("1kgenome_small", paste0("1kgenome_small_chr", sprintf("%02d", i))))
-  ), ignore.stdout = TRUE, ignore.stderr = TRUE)
-})
+    "--out", file.path(temp, file.path("1kgenome_pruned", sprintf("1kgenome_pruned_chr%02d", i)))
+  ))
+}))
 
-raw_data_1kgenome_files <- t(sapply(
-  X = file.path(temp_directory, "1kgenome_small", paste0("1kgenome_small_chr", sprintf("%02d", seq_len(22)))),
-  FUN = paste0, c(".bed", ".bim", ".fam"),
-  simplify = TRUE, 
-  USE.NAMES = FALSE
-))
-
-list_1kgenome <- file.path(temp_directory, "1kgenome_small", "1kgenome_small_files.txt")
-
-utils::write.table(
-  x = raw_data_1kgenome_files[-1, ],
+list_1kgenome <- file.path(temp, "1kgenome_pruned", "1kgenome_pruned_files.txt")
+data.table::fwrite(
+  x = data.table::data.table(file.path(temp, "1kgenome_pruned", sprintf("1kgenome_pruned_chr%02d", 1:22))),
   file = list_1kgenome,
   col.names = FALSE, 
   row.names = FALSE, 
   quote = FALSE
 )
-
-first_chromosome <- gsub(".bed", "", raw_data_1kgenome_files[1, 1])
-
-out <- file.path(temp_directory, "1kgenome_small", "1kgenome_small_complete")
-
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", first_chromosome, 
-  "--merge-list", list_1kgenome, 
-  "--snps-only", 
-  "--make-bed", 
-  "--out", out
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
+out <- file.path(temp, "1kgenome_pruned", "1kgenome_pruned_complete")
+sys(paste(plink, "--merge-list", list_1kgenome, "--out", out))
 
 if (file.exists(paste0(out, "-merge.missnp"))) {
-  parallel::mclapply(seq_len(22), mc.cores = 22, function(i) {
-    system(command = paste(
-      params[["bin_path"]][["plink"]], 
+  parallel::mclapply(1:22, mc.cores = 22, function(i) {
+    sys(paste(plink, 
       "--bfile", paste0(params[["ref1kg_genotypes"]], "Chr", i),
       "--exclude", paste0(out, "-merge.missnp"),
-      "--extract", file.path(temp_directory, "clean_data_snp.txt"), 
+      "--extract", file.path(temp, "clean_data_snp.txt"), 
       "--snps-only",
       "--make-bed",
-      "--out", file.path(temp_directory, "1kgenome_small", paste0("1kgenome_small_chr", sprintf("%02d", i)))
-    ), ignore.stdout = TRUE, ignore.stderr = TRUE)
+      "--out", file.path(temp, "1kgenome_pruned", paste0("1kgenome_pruned_chr", sprintf("%02d", i)))
+    ))
   })
-  system(command = paste(
-    params[["bin_path"]][["plink"]], 
+  sys(paste(plink, 
     "--bfile", first_chromosome, 
     "--exclude", paste0(out, "-merge.missnp"), 
     "--merge-list", list_1kgenome, 
     "--snps-only",
     "--make-bed", 
     "--out", out
-  ), ignore.stdout = TRUE, ignore.stderr = TRUE)
+  ))
 }
 
-## Merge raw_data with 1kgenome
-# Merge raw_data with 1kGenome; ERROR: Stopping due to mis-matching variants -- check +/- strand?
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "1kgenome_small", "1kgenome_small_complete"),
+sys(paste(plink, 
+  "--bfile", file.path(temp, "1kgenome_pruned", "1kgenome_pruned_complete"),
   "--bmerge", 
-    file.path(temp_directory, "clean_data_tmp.bed"), 
-    file.path(temp_directory, "clean_data_tmp.bim"),
-    file.path(temp_directory, "clean_data_tmp.fam"), 
+    file.path(temp, "data_pop.bed"), 
+    file.path(temp, "data_pop.bim"),
+    file.path(temp, "data_pop.fam"), 
   "--make-bed", 
-  "--out", file.path(temp_directory, "raw_data_1kgenome")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
+  "--out", file.path(temp, "data_1kgenome")
+))
 
-# Flip variant strand
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "1kgenome_small", "1kgenome_small_complete"),
-  "--flip", file.path(temp_directory, "raw_data_1kgenome-merge.missnp"), 
+sys(paste(plink, 
+  "--bfile", file.path(temp, "1kgenome_pruned", "1kgenome_pruned_complete"),
+  "--flip", file.path(temp, "data_1kgenome-merge.missnp"), 
   "--make-bed",
-  "--out", file.path(temp_directory, "1kgenome_small", "1kgenome_small_flipped")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
+  "--out", file.path(temp, "1kgenome_pruned", "1kgenome_pruned_flipped")
+))
 
-# Merge raw_data with 1kGenome; ERROR: Stopping due to mis-matching variants -- check +/- strand?
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "1kgenome_small", "1kgenome_small_flipped"),
+sys(paste(plink, 
+  "--bfile", file.path(temp, "1kgenome_pruned", "1kgenome_pruned_flipped"),
   "--bmerge", 
-    file.path(temp_directory, "clean_data_tmp.bed"), 
-    file.path(temp_directory, "clean_data_tmp.bim"),
-    file.path(temp_directory, "clean_data_tmp.fam"), 
+    file.path(temp, "data_pop.bed"), 
+    file.path(temp, "data_pop.bim"),
+    file.path(temp, "data_pop.fam"), 
   "--make-bed", 
-  "--out", file.path(temp_directory, "raw_data_1kgenome")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
+  "--out", file.path(temp, "data_1kgenome")
+))
 
-# Exclude mis-matching variants in raw_data And 1kGenome
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "1kgenome_small", "1kgenome_small_flipped"),
-  "--exclude", file.path(temp_directory, "raw_data_1kgenome-merge.missnp"), 
+sys(paste(plink, 
+  "--bfile", file.path(temp, "1kgenome_pruned", "1kgenome_pruned_flipped"),
+  "--exclude", file.path(temp, "data_1kgenome-merge.missnp"), 
   "--make-bed",
-  "--out", file.path(temp_directory, "1kgenome_small", "1kgenome_small_flipped_cleaned")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
+  "--out", file.path(temp, "1kgenome_pruned", "1kgenome_pruned_flipped_cleaned")
+))
 
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "clean_data_tmp"),
-  "--exclude", file.path(temp_directory, "raw_data_1kgenome-merge.missnp"), 
+sys(paste(plink, 
+  "--bfile", file.path(temp, "data_pop"),
+  "--exclude", file.path(temp, "data_1kgenome-merge.missnp"), 
   "--make-bed",
-  "--out", file.path(temp_directory, "clean_data_tmp_cleaned")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
+  "--out", file.path(temp, "data_pop_cleaned")
+))
 
-# Final, Merge raw_data with 1kGenome
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "1kgenome_small", "1kgenome_small_flipped_cleaned"),
+sys(paste(plink, 
+  "--bfile", file.path(temp, "1kgenome_pruned", "1kgenome_pruned_flipped_cleaned"),
   "--bmerge ", 
-    file.path(temp_directory, "clean_data_tmp_cleaned.bed"), 
-    file.path(temp_directory, "clean_data_tmp_cleaned.bim"),
-    file.path(temp_directory, "clean_data_tmp_cleaned.fam"), 
+    file.path(temp, "data_pop_cleaned.bed"), 
+    file.path(temp, "data_pop_cleaned.bim"),
+    file.path(temp, "data_pop_cleaned.fam"), 
   "--make-bed", 
-  "--out", file.path(temp_directory, "raw_data_1kgenome")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
+  "--out", file.path(temp, "data_1kgenome")
+))
 
-# Keep only variants in common between raw_data and 1kGenome
-dplyr::intersect(
- data.table::fread(file.path(temp_directory, "1kgenome_small", "1kgenome_small_flipped_cleaned.bim"))[["V2"]],
- data.table::fread(file.path(temp_directory, "clean_data_tmp_cleaned.bim"))[["V2"]]
-) %>%
-  utils::write.table(
-    file = file.path(temp_directory, "raw_data_1kgenome_snps.txt"),
-    col.names = FALSE, 
-    row.names = FALSE, 
-    quote = FALSE, 
-    sep = "\n"
-  )
-
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "raw_data_1kgenome"), 
-  "--extract", file.path(temp_directory, "raw_data_1kgenome_snps.txt"), 
+data.table::fwrite(
+  x = data.table::data.table(intersect(
+   data.table::fread(file.path(temp, "1kgenome_pruned", "1kgenome_pruned_flipped_cleaned.bim"))[["V2"]],
+   data.table::fread(file.path(temp, "data_pop_cleaned.bim"))[["V2"]]
+  )),
+  file = file.path(temp, "data_1kgenome_snps.txt"),
+  col.names = FALSE, 
+  row.names = FALSE, 
+  quote = FALSE
+)
+sys(paste(plink, 
+  "--bfile", file.path(temp, "data_1kgenome"), 
+  "--extract", file.path(temp, "data_1kgenome_snps.txt"), 
   "--make-bed ",
-  "--out", file.path(temp_directory, "raw_data_1kgenome")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
+  "--out", file.path(temp, "data_1kgenome")
+))
 
-## Check palindromic variants
-data.table::fread(file.path(temp_directory, "raw_data_1kgenome.bim")) %>%
-  tidyr::unite(alleles, V5, V6, remove = FALSE, sep = "") %>%
-  dplyr::filter(alleles %in% c("GC", "CG", "AT", "TA")) %>%
-  dplyr::select(V2) %>%
-  utils::write.table(
-    file = file.path(temp_directory, "raw_data_1kgenome_palindromic.txt"),
-    row.names = FALSE, 
-    col.names = FALSE, 
-    quote = FALSE
-  )
-
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "raw_data_1kgenome"), 
-  "--exclude", file.path(temp_directory, "raw_data_1kgenome_palindromic.txt"), 
+data.table::fwrite(
+  x = data.table::fread(file.path(temp, "data_1kgenome.bim"))[paste0(V5, V6) %in% c("GC", "CG", "AT", "TA"), .(V2)],
+  file = file.path(temp, "data_1kgenome_palindromic.txt"),
+  row.names = FALSE, 
+  col.names = FALSE, 
+  quote = FALSE
+)
+sys(paste(plink, 
+  "--bfile", file.path(temp, "data_1kgenome"), 
+  "--exclude", file.path(temp, "data_1kgenome_palindromic.txt"), 
   "--make-bed ",
-  "--out", file.path(temp_directory, "raw_data_1kgenome")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
+  "--out", file.path(temp, "data_1kgenome")
+))
 
-## Pop studied and 1kgenome
-system(command = paste(
-  params[["bin_path"]][["gcta"]], 
-  "--bfile", file.path(temp_directory, "raw_data_1kgenome"),
+sys(paste(params[["bin_path"]][["gcta"]], 
+  "--bfile", file.path(temp, "data_1kgenome"),
   "--make-grm-bin", 
   "--pca", params[["pca_components"]], 
-  "--thread-num", params[["n_cores"]],
-  "--out", file.path(temp_directory, "raw_data_1kgenome")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
-
-system(command = paste(
-  params[["bin_path"]][["gcta"]], 
-  "--grm", file.path(temp_directory, "raw_data_1kgenome"), 
+  "--thread-num", min(parallel::detectCores(), 22),
+  "--out", file.path(temp, "data_1kgenome")
+))
+sys(paste(params[["bin_path"]][["gcta"]], 
+  "--grm", file.path(temp, "data_1kgenome"), 
   "--pca", params[["pca_components"]], 
-  "--thread-num", params[["n_cores"]], 
-  "--out", file.path(temp_directory, "raw_data_1kgenome")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
-
-## Analysis summary
-# variant
-n_good_snp <- nrow(data.table::fread(
-  input = file.path(temp_directory, "clean_data_tmp.bim"), 
-  select = 1
+  "--thread-num", min(parallel::detectCores(), 22), 
+  "--out", file.path(temp, "data_1kgenome")
 ))
 
-n_good_snp_1kg <- nrow(data.table::fread(
-  input = file.path(temp_directory, "raw_data_1kgenome.bim"), 
-  select = 1
-))
+n_good_snp <- nrow(data.table::fread(file.path(temp, "data_pop.bim"), select = 1))
+n_good_snp_1kg <- nrow(data.table::fread(file.path(temp, "data_1kgenome.bim"), select = 1))
+n_samples <- nrow(data.table::fread(file.path(temp, "data_1kgenome.fam"), select = 1))
+n_samples_1kg <- nrow(data.table::fread(file.path(temp, "1kgenome_pruned", "1kgenome_pruned_flipped_cleaned.fam"), select = 1))
 
-# Samples
-n_samples <- nrow(data.table::fread(
-  input = file.path(temp_directory, "raw_data_1kgenome.fam"), 
-  select = 1
-))
+data_1kg_eigenvec <- data.table::fread(file.path(temp, "data_1kgenome.eigenvec"))
+data.table::setnames(data_1kg_eigenvec, names(data_1kg_eigenvec), c("FID", "IID", paste0("PC", seq_len(params[["pca_components"]]))))
 
-n_samples_1kg <- nrow(data.table::fread(
-  input = file.path(temp_directory, "1kgenome_small", "1kgenome_small_flipped_cleaned.fam"), 
-  select = 1
-))
-  
-data_pca <- dplyr::bind_rows(
-  data.table::fread(file.path(temp_directory, "clean_data_tmp.fam")) %>%
-    dplyr::mutate(POP = "raw_data") %>%
-    dplyr::select(V2, POP) %>%
-    dplyr::rename(IID = "V2") %>% 
-    dplyr::mutate(IID = as.character(IID)),
-  data.table::fread(params[["ref1kg_panel"]], fill = TRUE, header = TRUE) %>%
-    dplyr::select(sample, pop) %>%
-    dplyr::rename(IID = "sample", POP = "pop") %>% 
-    dplyr::mutate(IID = as.character(IID))
-) %>%
-  dplyr::filter(
-    IID %in% as.character(data.table::fread(file.path(temp_directory, "raw_data_1kgenome.fam"))[["V2"]])
-  ) %>%
-  dplyr::left_join(
-    y = data.table::fread(file.path(temp_directory, "raw_data_1kgenome.eigenvec")) %>%
-      `colnames<-`(c("FID", "IID", paste0("PC", seq_len(params[["pca_components"]])))) %>% 
-      dplyr::mutate(IID = as.character(IID)),
-    by = "IID"
-  ) %>%
-  dplyr::mutate(
-    POP = factor(
-      x = POP, 
-      levels = c("raw_data", sort(setdiff(unique(POP), "raw_data"), decreasing = TRUE))
-    )
-  ) %>%
-  dplyr::rename(x = PC1, y = PC2, Population = POP) %>%
-  dplyr::select(IID, Population, x, y) %>%
-  dplyr::left_join(
-    y = stats::aggregate(cbind(x, y) ~ Population, data = ., mean, na.rm = TRUE) %>%
-      `colnames<-`(paste0(colnames(.), c("", ".centroid", ".centroid"))),
-    by = "Population"
-  ) %>%
-  dplyr::mutate(dist = sqrt((x - x.centroid)^2 + (y - y.centroid)^2)) %>%
-  dplyr::group_by(Population) %>%
-  dplyr::mutate(
-    close = dist > (stats::quantile(dist, 0.75) + diff(stats::quantile(dist, c(0.25, 0.75))))
-  ) %>%
-  dplyr::ungroup()
+data_pca <- rbind(
+  data.table::fread(
+    file = file.path(temp, "data_pop.fam"), 
+    colClasses = c("V2" = "character")
+  )[, POP := params[["cohort_name"]]][, .(IID = V2, POP)],
+  data.table::fread(
+    file = params[["ref1kg_panel"]], 
+    fill = TRUE, 
+    header = TRUE, 
+    colClasses = c("sample" = "character")
+  )[, .(IID = sample, POP = pop)]
+)[IID %in% as.character(data.table::fread(file.path(temp, "data_1kgenome.fam"))[["V2"]])]
+data_pca <- merge(x = data_pca, y = data_1kg_eigenvec, by = "IID", all.x = TRUE)[, 
+  POP := factor(
+    x = POP, 
+    levels = c(params[["cohort_name"]], sort(setdiff(unique(POP), params[["cohort_name"]]), decreasing = TRUE))
+  )
+][, .(IID, Population = POP, x = PC1, y = PC2)]
+data_pca <- merge(
+  x = data_pca,
+  y = data_pca[, lapply(.SD, mean), by = Population, .SDcols = c("x", "y")],
+  by = "Population", 
+  all.x = TRUE, 
+  suffixes = c("", ".centroid")
+)[, 
+  dist := sqrt((x - x.centroid)^2 + (y - y.centroid)^2)
+][,
+  close := dist > (stats::quantile(dist, 0.75) + 1.5 * stats::IQR(dist)), 
+  by = Population
+]
 
-## Compute components inertia
-inertia_pca <- data.table::fread(file.path(temp_directory, "raw_data_1kgenome.eigenval")) %>%
-  tibble::rownames_to_column("x") %>%
-  dplyr::mutate(y = V1 / sum(V1))
-```
+centre_pca <- data_pca[Population != params[["cohort_name"]], .SD, .SDcols = c("IID", "Population", grep("centroid", names(data_pca), value = TRUE))][, (c("IID", "Population")) := lapply(.SD, as.character), .SDcols = c("IID", "Population")]
 
-The data from the **`r params[["cohort_name"]]`** cohort was pruned using the following cut-offs:
+check_ethnicity <- merge(
+  x = data.table::fread(
+    file = file.path(temp, "data_pop.fam"), 
+    col.names = c("FID", "IID"), 
+    select = c(V1 = "character", V2 = "character")
+  ),
+  y = data_pca[Population == params[["cohort_name"]]],
+  by = "IID",
+  all.x = TRUE
+)
 
-* variants call rate > 90.00 %
-* MAF ≥ `r params[["maf_threshold"]]`
-* HWE > `r scales::scientific(params[["hwe_pvalue"]])`
-* samples call rate > `r scales::percent(params[["callrate_samples"]], accuracy = 0.01)`
-* heterozygosity rate within `r qdap::replace_number(params[["heterozygosity_threshold"]])` times SD from the mean heterozygosity rate
-    
-The resulting "clean" dataset (*i.e.*, **`r scales::comma(n_samples-n_samples_1kg)`** samples and **`r scales::comma(n_good_snp)`** variants) was merged with the data from the publicly available *1,000 Genomes project* database, 
-and thinned down to only include not palindromic variants that were present in both dataset. 
+check_ethnicity[,
+  closest_pop := centre_pca[["Population"]][which.min(sqrt(
+    (x - centre_pca[["x.centroid"]])^2 + (y - centre_pca[["y.centroid"]])^2
+  ))],
+  by = seq_len(nrow(check_ethnicity))
+]
 
-A principal component analysis (PCA) was performed on the merged dataset 
-(*i.e.*, **`r scales::comma(n_samples)`** samples and **`r scales::comma(n_good_snp_1kg)`** variants, 
-including **`r scales::comma(n_samples_1kg)`** from the *1,000 Genomes project*)
-
-```{r population-02, include = FALSE}
-centre_pca <- data_pca %>%
-  dplyr::filter(Population != "raw_data") %>%
-  dplyr::select(IID, Population, dplyr::contains("centroid")) %>%
-  dplyr::mutate_at(.vars = dplyr::vars(IID, Population), .funs = as.character)
-
-check_ethnicity <- data.table::fread(file.path(temp_directory, "clean_data_tmp.fam")) %>%
-  dplyr::select(FID = 1, IID = 2) %>%
-  dplyr::mutate_all(as.character) %>%
-  dplyr::left_join(
-    dplyr::filter(data_pca, Population == "raw_data"),
-    by = "IID"
-  ) %>%
-  dplyr::rowwise() %>%
-  dplyr::mutate(
-    ClosestPop = centre_pca[["Population"]][which.min(sqrt(
-      (x - centre_pca[["x.centroid"]])^2 + (y - centre_pca[["y.centroid"]])^2
-    ))]
-  ) %>% 
-  dplyr::ungroup()
-
-pop1kg_description <- data.table::fread(params[["ref1kg_population"]]) %>%
-  dplyr::select(POP = 1, SUPER_POP = 4, SUPER_POP_NAME = 5)
+pop1kg_description <- data.table::fread(
+  file = params[["ref1kg_population"]], 
+  select = c(1, 4, 5),
+  col.names = c("POP", "SUPER_POP", "SUPER_POP_NAME")
+)
 
 if (is.null(params[["population"]])) {
   not_target_population <- check_ethnicity[0, ]
 } else {
-  not_target_population <- check_ethnicity %>%
-    dplyr::filter(!ClosestPop %in% c(
-      params[["population"]],
-      pop1kg_description %>%
-        dplyr::filter(SUPER_POP %in% params[["population"]]) %>%
-        .[["POP"]]
-    ))
+  not_target_population <- check_ethnicity[!closest_pop %in% c(
+    params[["population"]],
+    pop1kg_description[SUPER_POP %in% params[["population"]], POP]
+  )]
 }
 
-not_target_population <- dplyr::mutate(not_target_population, QC = "Ethnicity")
+not_target_population <- not_target_population[, QC := "Ethnicity"]
 ```
+    
+The resulting dataset (*i.e.*, **`r comma(n_samples-n_samples_1kg)`** samples and **`r comma(n_good_snp)`** variants) was merged with the data from the publicly available *1,000 Genomes project* database, and thinned down to only include not palindromic variants that were present in both dataset. 
 
-```{r population-03, fig.height = 4.7 * 1.5, fig.cap = paste("First factorial plane computed with a combined dataset", "involving samples from the 1,000 Genomes Project.", 'Samples were coloured by **A** "super population" and **B** "population" groups.')}
-data_pca_plot <- data_pca %>%
-  dplyr::left_join(
-    y = check_ethnicity %>%
-      dplyr::select(IID, ClosestPop) %>%
-      dplyr::left_join(
-        y = recruit_centre %>%
-          dplyr::rename(IID = Sample.Name) %>%
-          dplyr::mutate(IID = as.character(IID)) %>%
-          dplyr::select(IID, Cohort),
-        by = "IID"
-      ),
-    by = "IID"
-  ) %>%
-  dplyr::mutate(
-    Cohort = ifelse(is.na(Cohort), "1,000 Genomes", Cohort),
-    ClosestPop = ifelse(is.na(ClosestPop), as.character(Population), as.character(ClosestPop))
-  ) %>%
-  dplyr::mutate(
-    Population = ifelse(Population == "raw_data", Cohort, as.character(Population))
-  ) %>% 
-  dplyr::full_join(pop1kg_description, by = c("Population" = "POP")) %>% 
-  dplyr::mutate(
-    SUPER_POP = ifelse(is.na(SUPER_POP), Population, SUPER_POP),
-    SUPER_POP = stats::relevel(x = factor(SUPER_POP), ref = params[["cohort_name"]]),
-    SUPER_POP = factor(SUPER_POP, levels = rev(levels(SUPER_POP))),
-    Population = stats::relevel(x = factor(Population), ref = params[["cohort_name"]]),
-    Population = factor(Population, levels = rev(levels(Population)))
-  ) %>% 
-  dplyr::filter(!is.na(Cohort))
+A principal component analysis (PCA) was performed on the merged dataset (*i.e.*, **`r comma(n_samples)`** samples and **`r comma(n_good_snp_1kg)`** variants, including **`r comma(n_samples_1kg)`** from the *1,000 Genomes project*).
 
-get_lims <- dplyr::filter(data_pca_plot, Population %in% params[["cohort_name"]])
+```{r ancestry-inference-fig}
+data_pca_plot <- merge(
+  x = data_pca,
+  y = merge(x = check_ethnicity[, .(IID, closest_pop)], y = fam_data[, .(IID, cohort)], all.x = TRUE, by = "IID"),
+  all.x = TRUE,
+  by = "IID"
+)[, Population := as.character(Population)]
+data_pca_plot[, cohort := ifelse(is.na(cohort), "1,000 Genomes", cohort)]
+data_pca_plot[, closest_pop := ifelse(is.na(closest_pop), Population, closest_pop)]
+data_pca_plot[, Population := ifelse(Population %in% params[["cohort_name"]], cohort, Population)]
+data_pca_plot <- merge(x = data_pca_plot, y = pop1kg_description, all = TRUE, by.x = "Population", by.y = "POP")
+data_pca_plot[, SUPER_POP := ifelse(is.na(SUPER_POP), Population, SUPER_POP)]
+data_pca_plot[, SUPER_POP_NAME := ifelse(is.na(SUPER_POP_NAME), Population, SUPER_POP_NAME)]
+data_pca_plot <- data_pca_plot[!is.na(cohort), ]
 
 p_superpop <- ggplot2::ggplot(
-  data = data_pca_plot, 
-  mapping = ggplot2::aes(x = x, y = y, colour = SUPER_POP, shape = SUPER_POP, fill = SUPER_POP)
+  data = data_pca_plot[order(cohort)], 
+  mapping = ggplot2::aes(
+    x = x, 
+    y = y, 
+    colour = stats::relevel(factor(SUPER_POP_NAME), ref = params[["cohort_name"]]), 
+    fill = stats::relevel(factor(SUPER_POP_NAME), ref = params[["cohort_name"]]),
+    shape = SUPER_POP_NAME %in% params[["cohort_name"]], 
+    size = as.numeric(SUPER_POP_NAME %in% params[["cohort_name"]])
+  )
 ) +
   ggplot2::geom_hline(yintercept = 0, linetype = 2) +
   ggplot2::geom_vline(xintercept = 0, linetype = 2) +
-  ggplot2::geom_point(na.rm = TRUE) +
+  ggplot2::geom_point(na.rm = TRUE, key_glyph = ggplot2::draw_key_rect) +
   ggforce::geom_mark_ellipse(
-    data = ~ dplyr::filter(.x, SUPER_POP == params[["cohort_name"]]),
+    data = ~ .x[SUPER_POP_NAME == params[["cohort_name"]]],
     alpha = 0.1,
+    size = 0.5,
     con.cap = 0,
     con.border = "all",
     expand = ggplot2::unit(2, "mm"), 
     show.legend = FALSE
   ) +
-  ggplot2::scale_colour_viridis_d(direction = -1) +
-  ggplot2::scale_fill_viridis_d(direction = -1) +
-  ggplot2::scale_shape_manual(values = rep(c(1:5), 10)[seq_len(unique(data_pca_plot[["SUPER_POP"]]))]) +
+  ggplot2::scale_colour_viridis_d(
+    labels = function(x) ifelse(x == params[["cohort_name"]], paste0("**", params[["cohort_name"]], "**"), x)
+  ) +
+  ggplot2::scale_fill_viridis_d(
+    labels = function(x) ifelse(x == params[["cohort_name"]], paste0("**", params[["cohort_name"]], "**"), x)
+  ) +
+  ggplot2::scale_size(range = c(0.25, 1)) +
   ggplot2::labs(
-    x = "First Principal Component", 
-    y = "Second Principal Component", 
+    x = "PC01", 
+    y = "PC02", 
     colour = NULL, # "Super Population", 
-    shape = NULL, # "Super Population", 
     fill = NULL # "Super Population"
   ) +
-  ggplot2::theme(
-    legend.position = "bottom", 
-    # legend.text = element_text(size = rel(0.5)),
-    legend.key.size = ggplot2::unit(0.5, units = "lines")
-  )
-
-data_pca_plot_closest <- data_pca_plot %>% 
-  dplyr::filter(
-    Population %in% c(
-      dplyr::filter(data_pca_plot, Population == params[["cohort_name"]])[["ClosestPop"]], 
-      params[["cohort_name"]]
-    )
-  ) %>% 
-  dplyr::mutate_if(.predicate = is.factor, .funs = as.character) %>% 
-  dplyr::mutate(
-    Population = stats::relevel(x = factor(Population), ref = params[["cohort_name"]]),
-    Population = factor(Population, levels = rev(levels(Population)))
+  ggplot2::guides(
+    shape = "none", 
+    size = "none", 
+    fill = ggplot2::guide_legend(
+      ncol = (length(data_pca_plot[Population == params[["cohort_name"]], unique(closest_pop)]) > params[["max_labels"]]) + 1
+    ),
+    colour = "none"
   )
 
 p_pop <- ggplot2::ggplot(
-  data = data_pca_plot_closest,
-  mapping = ggplot2::aes(x = x, y = y, colour = Population, shape = Population, fill = Population)
+  data = data_pca_plot[Population %in% c(params[["cohort_name"]], data_pca_plot[Population == params[["cohort_name"]], unique(closest_pop)])][order(cohort)],
+  mapping = ggplot2::aes(
+    x = x, 
+    y = y, 
+    colour = stats::relevel(factor(Population), ref = params[["cohort_name"]]),
+    fill = stats::relevel(factor(Population), ref = params[["cohort_name"]]), 
+    shape = Population %in% params[["cohort_name"]], 
+    size = as.numeric(Population %in% params[["cohort_name"]])
+  )
 ) +
   ggplot2::geom_hline(yintercept = 0, linetype = 2) +
   ggplot2::geom_vline(xintercept = 0, linetype = 2) +
-  ggplot2::geom_point(na.rm = TRUE) +
+  ggplot2::geom_point(na.rm = TRUE, key_glyph = ggplot2::draw_key_rect) +
   ggforce::geom_mark_ellipse(
-    data = ~ dplyr::filter(.x, Population == params[["cohort_name"]]),
+    data = ~ .x[Population == params[["cohort_name"]]],
     alpha = 0.1,
+    size = 0.5,
     con.cap = 0,
     con.border = "all",
     expand = ggplot2::unit(2, "mm"), 
     show.legend = FALSE
   ) +
-  ggplot2::scale_colour_viridis_d(direction = -1) +
-  ggplot2::scale_fill_viridis_d(direction = -1) +
-  ggplot2::scale_shape_manual(values = rep(c(1:5), 10)[seq_len(unique(data_pca_plot[["Population"]]))]) +
+  ggplot2::scale_colour_viridis_d(
+    labels = function(x) ifelse(x == params[["cohort_name"]], paste0("**", params[["cohort_name"]], "**"), x)
+  ) +
+  ggplot2::scale_fill_viridis_d(
+    labels = function(x) ifelse(x == params[["cohort_name"]], paste0("**", params[["cohort_name"]], "**"), x)
+  ) +
+  ggplot2::scale_size(range = c(0.25, 1)) +
   ggplot2::labs(
-    x = "First Principal Component", 
-    y = "Second Principal Component",
+    x = "PC01", 
+    y = "PC02", 
     colour = NULL, # "Population", 
-    shape = NULL, # "Population", 
     fill = NULL # "Population"
-  ) +
-  ggplot2::coord_cartesian(
-    xlim = range(data_pca_plot_closest[["x"]]), 
-    ylim = range(data_pca_plot_closest[["y"]]), 
-    expand = 0.05
-  ) +
-  ggplot2::theme(
-    legend.position = "bottom",
-    # legend.text = element_text(size = rel(0.5)),
-    legend.key.size = ggplot2::unit(0.5, units = "lines")
+  )  +
+  ggplot2::guides(
+    shape = "none", 
+    size = "none", 
+    fill = ggplot2::guide_legend(
+      ncol = (length(data_pca_plot[Population == params[["cohort_name"]], unique(closest_pop)]) > params[["max_labels"]]) + 1
+    ),
+    colour = "none"
   )
 
-p_inertia <- inertia_pca %>%
-  dplyr::mutate(x = as.numeric(x)) %>%
-  dplyr::filter(x %in% 1:params[["pca_components"]]) %>%
-  ggplot2::ggplot(mapping = ggplot2::aes(x = x, y = y)) +
-  ggplot2::geom_bar(stat = "identity", fill = scales::viridis_pal(begin = 0.5, end = 0.5)(1)) +
-  ggplot2::labs(y = "Inertia", x = "Principal Components", title = "PCA Scree Plot") +
-  ggplot2::scale_x_continuous(breaks = seq_len(params[["pca_components"]])) +
-  ggplot2::scale_y_continuous(
-    labels = scales::percent_format(accuracy = 0.01), 
-    expand = ggplot2::expansion(mult = c(0, 0.05))
-  )
-
-ggpubr::ggarrange(
-  p_superpop +
-    ggplot2::facet_grid(cols = ggplot2::vars(Cohort)) +
-    ggplot2::theme(legend.position = "top"),
-  p_pop +
-    ggplot2::facet_grid(cols = ggplot2::vars(Cohort)) +
-    ggplot2::theme(legend.position = "top"), 
-  nrow = 2, 
-  labels = LETTERS
-)
-```
-
-```{r population-04, eval = !is.null(params[["population"]]) & nrow(not_target_population) > 0}
-samples_toexclude <- dplyr::bind_rows(
-  samples_toexclude, 
-  dplyr::select(not_target_population, FID, IID, QC)
-)
-
-pop_name <- pop1kg_description %>%
-  dplyr::filter(SUPER_POP %in% params[["population"]]) %>%
-  dplyr::distinct(SUPER_POP_NAME) %>%
-  .[["SUPER_POP_NAME"]]
-
-if (nrow(not_target_population) > 15) {
-  cat(
-    "In total, ", scales::comma(nrow(not_target_population)), " samples was(were) determined as ", 
-    "non-", pop_name, "(s) based on PCA.\n\n", 
-    sep = ""
-  )
-} else {
-  not_target_population %>%
-    dplyr::select(FID, IID, ClosestPop) %>%
-    dplyr::rename("Closest Population" = ClosestPop) %>% 
-    gt::gt(auto_align = "center") %>% 
-    gt::opt_row_striping() %>% 
-    gt::tab_header(paste0(
-      "Samples determined as non-", pop_name, "(s) based on PCA ", 
-      "(N = ", scales::comma(nrow(not_target_population)), ")."
-    ))
-}
-```
-
-```{r population-05, include = FALSE}
-## Only pop studied
-samples_toexclude %>%
-  dplyr::filter(grepl("Sample_Call_Rate|Heterozygosity_Check$", QC)) %>%
-  dplyr::distinct(FID, IID) %>%
-  utils::write.table(
-    file = file.path(temp_directory, "samples_toexclude_pca_within.txt"),
-    sep = "\t", 
-    row.names = FALSE, 
-    col.names = FALSE, 
-    quote = FALSE
-  )
-
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "clean_data_tmp"), 
-  "--remove", file.path(temp_directory, "samples_toexclude_pca_within.txt"), 
-  "--make-bed", 
-  "--out", file.path(temp_directory, "clean_data_tmp_within_a")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
-
-system(command = paste(
-  params[["bin_path"]][["gcta"]], 
-  "--bfile", file.path(temp_directory, "clean_data_tmp_within_a"), 
-  "--make-grm-bin", 
-  "--thread-num", params[["n_cores"]],
-  "--out", file.path(temp_directory, "clean_data_tmp_within_b")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
-
-system(command = paste(
-  params[["bin_path"]][["gcta"]], 
-  "--grm", file.path(temp_directory, "clean_data_tmp_within_b"), 
-  "--pca", params[["pca_components"]],
-  "--thread-num", params[["n_cores"]],
-  "--out", file.path(temp_directory, "clean_data_tmp_within")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
-
-eigenvec_pca <- data.table::fread(file.path(temp_directory, "clean_data_tmp_within.eigenvec")) %>%
-  `colnames<-`(c("FID", "IID", paste0("PC", seq_len(params[["pca_components"]])))) %>%
-  dplyr::mutate_at(.vars = c("FID", "IID"), .funs = as.character) %>% 
-  dplyr::mutate(
-    extremes = abs(PC1) > params[["pca_threshold"]] * stats::sd(PC1) | 
-      abs(PC2) > params[["pca_threshold"]] * stats::sd(PC2)
-  )
-
-samples_toexclude <- dplyr::bind_rows(
-  samples_toexclude,
-  eigenvec_pca %>%
-    dplyr::filter(extremes) %>%
-    dplyr::select(FID, IID) %>%
-    dplyr::mutate(QC = "Cohortwithin")
-)
-
-recruit_centre_pca <- eigenvec_pca %>%
-  dplyr::mutate(POP = "raw_data") %>%
-  dplyr::rename(Extremes = extremes) %>%
-  dplyr::left_join(
-    recruit_centre %>%
-      dplyr::rename(IID = Sample.Name) %>%
-      dplyr::select(IID, Cohort),
-    by = "IID"
-  ) %>%
-  dplyr::mutate(Cohort = as.factor(Cohort))
-```
-
-
-### Within **`r params[["cohort_name"]]`** structure
-
-To assess the homogeneity of the **`r params[["cohort_name"]]`** cohort, 
-a PCA was performed using only samples from the cohort.  
-Samples were labeled and flagged as being extreme when the distance from
-the **`r params[["cohort_name"]]`** cohort centroid was greater than
-`r qdap::replace_number(params[["pca_threshold"]])` times the standard deviation 
-of all distances.
-
-Samples labeled and flagged as extreme: **`r scales::comma(sum(eigenvec_pca[["extremes"]]))`**
-
-```{r population-06, fig.cap = paste("Within-samples outliers detected as samples having at least one coordinate", "in the first factorial plane larger than", qdap::replace_number(params[["pca_threshold"]]), "times the standard deviation of the principal component.")}
-p_within <- ggplot2::ggplot(
-  data = dplyr::mutate(
-    .data = recruit_centre_pca, 
-    labs = ifelse(Extremes, IID, NA),
-    Extremes = factor(Extremes)
-  ),
-  mapping = ggplot2::aes(x = PC1, y = PC2)
-) +
-  ggplot2::geom_hline(yintercept = 0, colour = "black", linetype = 2) +
-  ggplot2::geom_vline(xintercept = 0, colour = "black", linetype = 2) +
-  ggplot2::geom_point(
-    mapping = ggplot2::aes(colour = Extremes, shape = Extremes), 
-    na.rm = TRUE
-  ) +
-  ggrepel::geom_label_repel(
-    mapping = ggplot2::aes(label = labs), 
-    min.segment.length = ggplot2::unit(0, 'lines'),
-    force = 10, 
-    alpha = 0.8, 
-    size = 2.5,
-    na.rm = TRUE
-  ) +
-  ggplot2::scale_shape_manual(values = c(1, 3)) +
-  ggplot2::scale_colour_manual(values = c(scales::viridis_pal(begin = 0.5, end = 0.5)(1), "firebrick2")) +
-  ggplot2::labs(
-    x = "First Principal Component", 
-    y = "Second Principal Component", 
-    colour = "Cohort"
-  ) +
-  ggplot2::theme(legend.position = "none")
-
-## Compute components inertia
-inertia_within <- data.table::fread(file.path(temp_directory, "clean_data_tmp_within.eigenval")) %>%
-  tibble::rownames_to_column("x") %>%
-  dplyr::mutate(y = V1 / sum(V1)) %>%
-  dplyr::select(x, y) %>% 
-  dplyr::mutate(x = as.numeric(x)) %>% 
-  as.data.frame()
-
-p_inertia_within <- ggplot2::ggplot(
-  data = dplyr::filter(.data = inertia_within, x %in% 1:params[["pca_components"]]),
+p_inertia <- ggplot2::ggplot(
+  data = data.table::fread(file.path(temp, "data_1kgenome.eigenval"))[, y := V1 / sum(V1)][1:params[["pca_components"]]][, x := 1:.N],
   mapping = ggplot2::aes(x = x, y = y)
 ) +
-  ggplot2::geom_bar(stat = "identity", fill = scales::viridis_pal(begin = 0.5, end = 0.5)(1)) +
-  ggplot2::labs(y = "Inertia", x = "Principal Components", title = "PCA Scree Plot") +
-  ggplot2::scale_x_continuous(breaks = seq_len(params[["pca_components"]])) +
+  ggplot2::geom_col(fill = scales::viridis_pal(begin = 0.5, end = 0.5)(1)) +
+  ggplot2::scale_x_continuous(
+    breaks = seq_len(params[["pca_components"]]),
+    labels = function(x) sprintf("PC%02d", x), 
+    guide = ggplot2::guide_axis(angle = 45)
+  ) +
   ggplot2::scale_y_continuous(
-    labels = scales::percent_format(accuracy = 0.1), 
+    labels = percent2, 
     expand = ggplot2::expansion(mult = c(0, 0.05))
+  ) +
+  ggplot2::labs(
+    x = "Principal Components", 
+    y = "Contribution"
   )
 
-ggpubr::ggarrange(p_within, p_inertia_within, ncol = 2, labels = LETTERS, widths = c(1.2, 1))
-
-pca_threshold <- which(abs(diff(inertia_within[["y"]])) < 0.01)
+patchwork::wrap_plots(p_inertia, p_superpop, p_pop, design = "12\n13") +
+  patchwork::plot_annotation(
+    title = "Principal Component Analysis (*Ancestry Inference*)",
+    subtitle = paste(
+      "First factorial plane computed with a combined dataset<sup>&dagger;</sup> involving samples from the 1,000 Genomes Project.", 
+      'Samples were coloured by **B**) "super population" and **C**) "population".',
+      sep = "<br>"
+    ),
+    caption = sprintf(
+      "<sup>&dagger;</sup>%s variants for %s samples (including %s from the 1,000 Genomes Project).", 
+      comma(n_good_snp_1kg), comma(n_samples), comma(n_samples_1kg)
+    ),
+    tag_levels = "A"
+  )
 ```
 
-<!--According to the eigenvalues, the first factorial plane explains 
-`r scales::percent(sum(inertia_within[c(1, 2), "y"]), accuracy = 0.01)` of the variance among samples. 
-The principal components after `r qdap::replace_number(pca_threshold[1])` explain on average 
-`r scales::percent(mean(inertia_within[pca_threshold[1]:nrow(inertia_within), "y"]), accuracy = 0.01)` 
-[`r paste(scales::percent(range(inertia_within[pca_threshold[1]:nrow(inertia_within), "y"]), accuracy = 0.01), collapse = "; ")`] of 
-the variance (principal components up to `r scales::comma(nrow(inertia_within))`).-->
+```{r ancestry-inference-exclude, eval = !is.null(params[["population"]]) & nrow(not_target_population) > 0}
+samples_to_exclude <- rbind(
+  samples_to_exclude, 
+  not_target_population[, .(FID, IID, QC)]
+)
 
-```{r population-07, fig.cap = "PCA plot for components from two to five."}
-pca_planes <- utils::combn(seq_len(min(params[["pca_components"]], 5))[-1], 2)
+pop_name <- pop1kg_description[SUPER_POP %in% params[["population"]], unique(SUPER_POP_NAME)]
 
-pca_planes_list <- lapply(seq(ncol(pca_planes)), function(iComb) {
-  ggplot2::ggplot(data = recruit_centre_pca) +
-    ggplot2::geom_hline(yintercept = 0, colour = "black", linetype = 2) +
-    ggplot2::geom_vline(xintercept = 0, colour = "black", linetype = 2) +
-    ggplot2::geom_point(
-      ggplot2::aes(
-        x = .data[[paste0("PC", pca_planes[1, iComb])]], 
-        y = .data[[paste0("PC", pca_planes[2, iComb])]], 
-        colour = Extremes, 
-        shape = Extremes
-      ), 
-      shape = 1, 
+cat(
+  "In total, ", comma(nrow(not_target_population)), " sample",
+  ifelse(nrow(not_target_population) > 1, "s were", " was"),
+  " determined as non-", pop_name, " based on PCA.\n", 
+  sep = ""
+)
+not_target_population[, .(FID, IID, closest_pop)] %>%
+  gt::gt(auto_align = "center") %>% 
+  gt::cols_label(closest_pop = "Closest Population") %>% 
+  gt::tab_header(paste0(
+    "Samples Determined As Non-", pop_name, " Based On PCA ", 
+    "(N = ", comma(nrow(not_target_population)), ")"
+  )) %>% 
+  gt::opt_row_striping() %>% 
+  gt::opt_all_caps() %>% 
+  print()
+
+cat("\n")
+```
+
+### Cohort Structure
+
+To assess the homogeneity of the **`r params[["cohort_name"]]`** cohort, a PCA was performed using only samples from the cohort.  
+Samples were labelled and flagged as being possible outliers when the distance from the **`r params[["cohort_name"]]`** cohort centroid was greater than `r params[["pca_threshold"]]` times the standard deviation of all distances to the cohort centroid.
+
+```{r cohort-structure, include = FALSE}
+data.table::fwrite(
+  x = samples_to_exclude[grepl("Sample_Call_Rate|Heterozygosity_Check$", QC), unique(.(FID, IID))],
+  file = file.path(temp, "samples_to_exclude_pca_within.txt"),
+  sep = "\t", 
+  row.names = FALSE, 
+  col.names = FALSE, 
+  quote = FALSE
+)
+
+sys(paste(plink, 
+  "--bfile", file.path(temp, "data_pop"), 
+  "--remove", file.path(temp, "samples_to_exclude_pca_within.txt"), 
+  "--make-bed", 
+  "--out", file.path(temp, "data_pop_within_tmp0")
+))
+sys(paste(params[["bin_path"]][["gcta"]], 
+  "--bfile", file.path(temp, "data_pop_within_tmp0"), 
+  "--make-grm-bin", 
+  "--thread-num", min(parallel::detectCores(), 22),
+  "--out", file.path(temp, "data_pop_within_tmp1")
+))
+sys(paste(params[["bin_path"]][["gcta"]], 
+  "--grm", file.path(temp, "data_pop_within_tmp1"), 
+  "--pca", params[["pca_components"]],
+  "--thread-num", min(parallel::detectCores(), 22),
+  "--out", file.path(temp, "data_pop_within")
+))
+
+eigenvec_pca <- data.table::fread(
+  file = file.path(temp, "data_pop_within.eigenvec"), 
+  colClasses = c(V1 = "character", V2 = "character")
+)
+data.table::setnames(eigenvec_pca, names(eigenvec_pca), c("FID", "IID", paste0("PC", seq_len(params[["pca_components"]]))))
+eigenvec_pca[,
+  is_outlier := abs(PC1) > mean(PC1) + params[["pca_threshold"]] * stats::sd(PC1) | 
+    abs(PC2) > mean(PC2) + params[["pca_threshold"]] * stats::sd(PC2) | 
+    abs(PC3) > mean(PC3) + params[["pca_threshold"]] * stats::sd(PC3)
+]
+
+fam_data_pca <- merge(
+  x = eigenvec_pca[, POP := params[["cohort_name"]]],
+  y = fam_data[, .(IID, cohort)],
+  all.x = TRUE,
+  by = "IID"
+)
+```
+
+Samples labelled and flagged as possible outliers: **`r comma(eigenvec_pca[, sum(is_outlier)])`**.
+
+```{r cohort-structure-fig}
+p_within <- lapply(list(c("PC1", "PC2"), c("PC1", "PC3"), c("PC2", "PC3")), function(ipcs) {
+  ggplot2::ggplot(
+    data = fam_data_pca[, IID := if (sum(is_outlier) > params[["max_labels"]]) NA else IID], 
+    mapping = ggplot2::aes(
+      x = .data[[ipcs[1]]], 
+      y = .data[[ipcs[2]]], 
+      colour = is_outlier, 
+      fill = is_outlier,
+      shape = is_outlier, 
+      size = as.numeric(is_outlier)
+    )
+  ) +
+    ggplot2::geom_hline(yintercept = 0, linetype = 2) +
+    ggplot2::geom_vline(xintercept = 0, linetype = 2) +
+    ggplot2::geom_point(data = ~ .x[!(is_outlier)], na.rm = TRUE) +
+    ggforce::geom_mark_ellipse(
+      data = ~ .x[!(is_outlier)],
+      alpha = 0.1,
+      size = 0.5,
+      con.cap = 0,
+      con.border = "all",
+      expand = ggplot2::unit(2, "mm"), 
+      show.legend = FALSE
+    ) +
+    ggplot2::geom_point(data = ~ .x[(is_outlier)], colour = "firebrick2", na.rm = TRUE) +
+    ggrepel::geom_label_repel(
+      data = ~ .x[(is_outlier)],
+      mapping = ggplot2::aes(label = IID),
+      min.segment.length = ggplot2::unit(0, "lines"),
+      force = 10, 
+      fill = "white",
+      colour  = "firebrick2", 
+      segment.colour = "firebrick2", 
+      size = 3, 
       na.rm = TRUE
     ) +
+    ggplot2::scale_colour_viridis_d(begin = 0.5, end = 0.5) +
+    ggplot2::scale_fill_viridis_d(begin = 0.5, end = 0.5) +
+    ggplot2::scale_size(range = c(0.75, 3)) +
     ggplot2::scale_shape_manual(values = c(1, 3)) +
-    ggplot2::scale_colour_manual(values = c(scales::viridis_pal(begin = 0.5, end = 0.5)(1), "firebrick2")) +
-    ggplot2::theme(legend.position = "none") +
-    ggplot2::labs(
-      x = paste0("PC", pca_planes[1, iComb]),
-      y = paste0("PC", pca_planes[2, iComb])
-    )
+    ggplot2::labs(x = gsub("PC", "PC0", ipcs[1]), y = gsub("PC", "PC0", ipcs[2])) +
+    ggplot2::theme(legend.position = "none")
 })
 
-ggpubr::ggarrange(plotlist = pca_planes_list, nrow = 2, ncol = 3, labels = LETTERS)
-```
-
-```{r exclusion, include = FALSE}
-samples_toexclude_export <- samples_toexclude %>%
-  dplyr::group_by(QC) %>% 
-  dplyr::distinct(FID, IID, .keep_all = TRUE) %>% 
-  dplyr::ungroup() %>% 
-  dplyr::mutate(
-    QC = factor(
-      x = QC,
-      levels = c(
-        "Sample_Call_Rate", "Gender_Discrepancy", "Gender_Missing", 
-        "Gender_F", "Heterozygosity_Check", 
-        paste0("Heterozygosity_Check_maf_", params[["maf_threshold"]]),
-        "Relatedness", "Sample_Mendel_Error", "Ethnicity", "Cohortwithin"
-      )
-    ),
-    value = 1
-  ) %>%
-  tidyr::complete(tidyr::nesting(FID, IID), QC, fill = list(value = 0)) %>% 
-  tidyr::spread(QC, value) %>% 
-  dplyr::mutate(
-    Status = dplyr::if_else((Sample_Call_Rate + Heterozygosity_Check) > 0, "Exclude", "Check")
-  ) %>% 
-  dplyr::rename(
-    `Call Rate` = Sample_Call_Rate,
-    `Gender Discrepancy` = Gender_Discrepancy,
-    `Gender Missing` = Gender_Missing,
-    `Gender F` = Gender_F,
-    !!paste0("Heterozygosity Check (MAF ", params[["maf_threshold"]], ")") :=
-      paste0("Heterozygosity_Check_maf_", params[["maf_threshold"]]),
-    `Heterozygosity Check` = Heterozygosity_Check,
-    `PCA Outliers` = Ethnicity,
-    `Within Cohort PCA outliers` = Cohortwithin,
-    `Relatedness Pi_hat ≥ 0.2` = Relatedness,
-    `Mendelian Error` = Sample_Mendel_Error
+p_within[[length(p_within) + 1]] <- ggplot2::ggplot(
+  data = data.table::fread(file.path(temp, "data_pop_within.eigenval"))[, y := V1 / sum(V1)][1:params[["pca_components"]]][, x := 1:.N],
+  mapping = ggplot2::aes(x = x, y = y)
+) +
+  ggplot2::geom_col(fill = scales::viridis_pal(begin = 0.5, end = 0.5)(1)) +
+  ggplot2::scale_x_continuous(
+    breaks = seq_len(params[["pca_components"]]),
+    labels = function(x) sprintf("PC%02d", x), 
+    guide = ggplot2::guide_axis(angle = 45)
+  ) +
+  ggplot2::scale_y_continuous(
+    labels = percent2, 
+    expand = ggplot2::expansion(mult = c(0, 0.05))
+  ) +
+  ggplot2::labs(
+    x = "Principal Components", 
+    y = "Contribution"
   )
 
-utils::write.table(
-  x = dplyr::filter(samples_toexclude_export, Status == "Exclude"),
-  file = file.path(temp_directory, "samples_excluded.txt"),
+patchwork::wrap_plots(p_within, nrow = 2, ncol = 2) +
+  patchwork::plot_annotation(
+    title = "Principal Component Analysis (*Cohort Structure*)",
+    subtitle = paste(
+      sprintf(
+        "The PCA was computed on a dataset of %s variants for %s samples.<br>", 
+        comma(nrow(data.table::fread(file.path(temp, "data_pop_within_tmp0.bim")))),
+        comma(nrow(data.table::fread(file.path(temp, "data_pop_within_tmp0.fam"))))
+      ),
+      "Samples at more than", params[["pca_threshold"]], 
+      "times the standard deviation from the mean of the principal components 1 to 3 are coloured",
+      "and denoted by \"<b style = 'color:firebrick2;'>+</b>\"."
+    ), 
+    tag_levels = "A"
+  )
+```
+
+```{r cohort-structure-exclude}
+cohort_outliers <- eigenvec_pca[(is_outlier), .(FID, IID)][, QC := "Cohortwithin"]
+
+if (nrow(cohort_outliers) > 0) {
+  cohort_outliers[, .(FID, IID)] %>% 
+    gt::gt(auto_align = "center") %>% 
+    gt::tab_header("Outliers Within The Cohort") %>% 
+    gt::opt_row_striping() %>% 
+    gt::opt_all_caps() %>% 
+    print()
+}
+
+samples_to_exclude <- rbind(
+  samples_to_exclude,
+  cohort_outliers
+)
+```
+
+```{r summary-exclude, include = FALSE}
+samples_to_exclude <- samples_to_exclude[, (c("FID", "IID")) := unique(.(FID, IID)), by = QC]
+samples_to_exclude[, 
+  QC := factor(
+    x = QC,
+    levels = c(
+      "Sample_Call_Rate", 
+      "Sex_Discrepancy", 
+      "Sex_Missing", 
+      "Sex_F", 
+      "Heterozygosity_Check", 
+      paste0("Heterozygosity_Check_maf_", params[["maf_threshold"]]),
+      "Relatedness", 
+      "Sample_Mendel_Error", 
+      "Ethnicity", 
+      "Cohortwithin"
+    )
+  )
+]
+samples_to_exclude[, value := 1]
+samples_to_exclude_export <- data.table::dcast(samples_to_exclude, FID + IID ~ QC, value.var = "value", fill = 0)
+if (!"Sample_Call_Rate" %in% names(samples_to_exclude_export)) samples_to_exclude_export[, Sample_Call_Rate := 0]
+if (!"Heterozygosity_Check" %in% names(samples_to_exclude_export)) samples_to_exclude_export[, Heterozygosity_Check := 0]
+samples_to_exclude_export[, Status := ifelse((Sample_Call_Rate + Heterozygosity_Check) > 0, "Exclude", "Check")]
+name_cols <- c(
+  "FID", "IID", "Status",
+  "Call Rate", "Sex Discrepancy", "Sex Missing", "Sex Other", 
+  paste0("Heterozygosity Check (MAF ", params[["maf_threshold"]], ")"),
+  "Heterozygosity Check", "Ethnicity", "Cohort PCA outliers",
+  "Relatedness Pi_hat ≥ 0.2", "Mendelian Error"
+)
+names(name_cols) <- c(
+    "FID", "IID", "Status",
+    "Sample_Call_Rate", "Sex_Discrepancy", "Sex_Missing", "Sex_F",
+    paste0("Heterozygosity_Check_maf_", params[["maf_threshold"]]),
+    "Heterozygosity_Check", "Ethnicity", "Cohortwithin", 
+    "Relatedness", "Sample_Mendel_Error"
+  )
+data.table::setnames(
+  x = samples_to_exclude_export, 
+  old = names(samples_to_exclude_export), 
+  new = name_cols[names(samples_to_exclude_export)]
+)
+
+data.table::fwrite(
+  x = samples_to_exclude_export[Status == "Exclude"],
+  file = file.path(temp, "samples_excluded.txt"),
   sep = "\t", 
   col.names = TRUE, 
   quote = FALSE, 
   row.names = FALSE
 )
 
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "raw_data"), 
-  "--remove", file.path(temp_directory, "samples_excluded.txt"), 
+sys(paste(plink, 
+  "--bfile", file.path(temp, "data"), 
+  "--remove", file.path(temp, "samples_excluded.txt"), 
   "--snps-only", 
   "--set-hh-missing", 
   "--make-bed", 
-  "--out", file.path(temp_directory, "raw_data_good_samples")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
+  "--out", file.path(temp, "data_good_samples")
+))
 ```
-
-
 
 # Variant-based QC
 
-After excluding sample-based QC failed samples, variant-based QC was performed on 
-**`r scales::comma(nrow(data.table::fread(input = file.path(temp_directory, "raw_data_good_samples.fam"), select = 1)))`** samples.  
+Variant-based QC was performed on **`r comma(nrow(data.table::fread(file.path(temp, "data_good_samples.fam"), select = 1)))`** samples (*i.e.*, after excluding samples identified in the Section [Sample-based QC](#sample-qc)).  
 
+## Variant Call Rate
 
-## Variant call rate
+Proportion of missing genotypes (i.e., *call rate*) per variant was estimated using the `--missing` command in PLINK.
 
-```{r variant-call-rate-01, include = FALSE}
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "raw_data_good_samples"), 
+```{r variant-call-rate}
+sys(paste(plink, 
+  "--bfile", file.path(temp, "data_good_samples"), 
   "--missing",
-  "--out ", file.path(temp_directory, "raw_data_good_samples")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
-
-callrate_snps_raw <- data.table::fread(file.path(temp_directory, "raw_data_good_samples.lmiss"))
+  "--out ", file.path(temp, "data_good_samples")
+))
+callrate_snps_raw <- data.table::fread(file.path(temp, "data_good_samples.lmiss"))
+snps_low_call_rate <- callrate_snps_raw[, sum((1 - F_MISS) < params[["callrate_snps"]])]
 ```
 
-Proportion of missing genotypes or call rate per variant was estimated using the `--missing` command in PLINK.  
+In total, **`r comma(snps_low_call_rate)`** variants had a call rate below `r percent2(params[["callrate_snps"]])` and were excluded.  
 
-```{r variant-call-rate-02, fig.cap = paste("Call rate per variant. The red line denotes the call rate", scales::percent(params[["callrate_snps"]], accuracy = 0.01), "cut-off.", "Variants with a call rate greater than or equal to 99.9% are not shown.")}
-ggplot2::ggplot(
-  data = callrate_snps_raw %>%
-    dplyr::arrange(F_MISS) %>%
-    tidyr::replace_na(replace = list(F_MISS = 1)) %>% 
-    dplyr::filter(F_MISS>=0.001),
-  mapping = ggplot2::aes(x = length(F_MISS):1, y = 1 - F_MISS)
+```{r variant-call-rate-fig}
+snps_call_rate <- callrate_snps_raw[, F_MISS := ifelse(is.na(F_MISS), 1, F_MISS)][F_MISS >= 0.001][order(1 - F_MISS)]
+p <- ggplot2::ggplot(
+  data = snps_call_rate,
+  mapping = ggplot2::aes(x = seq_along(F_MISS), y = 1 - F_MISS)
 ) +
   ggplot2::geom_point(
     colour = scales::viridis_pal(begin = 0.5, end = 0.5)(1), 
@@ -2068,304 +1886,303 @@ ggplot2::ggplot(
     colour = "firebrick2", 
     linetype = 2
   ) +
-  ggplot2::scale_x_continuous(labels = scales::comma_format(accuracy = 1), trans = "log10") +
-  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.1)) +
-  ggplot2::labs(x = "Variants", y = "Call rate")
+  ggplot2::geom_vline(
+    mapping = ggplot2::aes(xintercept = snps_low_call_rate),
+    colour = "firebrick2", 
+    linetype = 2
+  ) +
+  ggplot2::scale_x_continuous(
+    labels = comma,
+    trans = "log10",
+    guide = ggplot2::guide_axis(check.overlap = TRUE), 
+    sec.axis = ggplot2::dup_axis(
+      labels = function(x) paste0("<b style = 'color:firebrick2;'>", comma(x), "</b>"),
+      breaks = snps_low_call_rate, 
+      name = NULL
+    )
+  ) +
+  ggplot2::scale_y_continuous(
+    breaks = (function(n = 5, cr_thresh = params[["callrate_snps"]], ...) {
+      function(x) {
+        x <- x[is.finite(x)]
+        if (length(x) == 0) {
+          return(numeric())
+        }
+        rng <- range(x)
+        c(labeling::extended(rng[1], rng[2], n, ...), cr_thresh)
+      }
+    })(),
+    labels = (function(x, cr_thresh = params[["callrate_snps"]]) {
+      ifelse(x == cr_thresh, paste0("<b style = 'color:firebrick2;'>", percent1(x), "</b>"), percent1(x))
+    })
+  ) +
+  ggplot2::labs(
+    x = "Number of Variants", 
+    y = "Call Rate", 
+    title = "Variants Call Rate",
+    caption = "Variants with a call rate ≥ 99.9 % are not shown."
+  )
+
+suppressWarnings({ print(p) })
 ```
 
-
-## Duplicated and/or triplicated variants
+## Variants With Multiple Copies
 
 ```{r duplicated-snps, include = FALSE}
-callrate_snps <- callrate_snps_raw %>%
-  dplyr::select(CHR, SNP, F_MISS) %>%
-  dplyr::left_join(
-    y = data.table::fread(file.path(temp_directory, "raw_data_good_samples.bim")) %>%
-      dplyr::select(CHR = V1, SNP = V2, POS = V4),
-    by = c("CHR" = "CHR", "SNP" = "SNP")
-  ) %>%
-  dplyr::arrange(CHR, POS) %>%
-  tidyr::unite(CHRPOS, CHR, POS, sep = ":", remove = FALSE)
+callrate_snps <- merge(
+  x = callrate_snps_raw[, .(CHR, SNP, F_MISS)],
+  y = data.table::fread(
+    file = file.path(temp, "data_good_samples.bim"),
+    select = c(1, 2, 4),
+    col.names = c("CHR", "SNP", "POS")
+  ),
+  all.x = TRUE,
+  by = c("CHR", "SNP")
+)[order(CHR, POS)]
+callrate_snps[, CHRPOS := paste(CHR, POS, sep = ":")]
+callrate_snps[, (c("CHR", "POS")) := lapply(.SD, as.character), .SDcols = c("CHR", "POS")]
 
-duplicated_snps <- callrate_snps %>%
-  dplyr::filter(CHRPOS %in% CHRPOS[duplicated(CHRPOS)])
-
-if (nrow(duplicated_snps) == 0) {
-  uniq_snps <- callrate_snps
-} else {
-  uniq_snps <- dplyr::bind_rows(
-    callrate_snps %>%
-      dplyr::filter(!CHRPOS %in% duplicated_snps[["CHRPOS"]]),
-    duplicated_snps %>% 
-      dplyr::group_by(CHRPOS) %>% 
-      dplyr::do(
-        dplyr::filter(., F_MISS == min(F_MISS))
-      ) %>%
-      dplyr::filter(dplyr::n()==1) %>% 
-      dplyr::ungroup()
-  ) %>% 
-    dplyr::mutate_at(.vars = c("CHR", "POS"), as.character)
-}
+duplicated_snps <- callrate_snps[CHRPOS %in% CHRPOS[duplicated(CHRPOS)]]
+uniq_snps <- callrate_snps[!CHRPOS %in% CHRPOS[duplicated(CHRPOS)]]
 ```
 
-Due to some variants having several different names, 
-several variants with two or more identical copies were found in the dataset. 
-For each variant with multiple copies, 
-only the variant with the highest call rate (or arbitrarily if call rate was equal) was included.  
+In total, **`r comma(nrow(duplicated_snps))`** variants existed in multiple copies in the dataset (same chromosome and position) and were removed.  
 
-In total, **`r scales::comma(nrow(callrate_snps) - nrow(uniq_snps))`** variants 
-that possibly existed in multiple copies in the dataset (same chromosome and position) were removed.  
+## Mendel Errors
 
-
-## Variant Mendel errors
-
-```{r lmendel-error-00}
-if (!params[["includes_relatives"]]) cat("Not Applicable.\n\n")
+```{r lmendel-error}
+if (!params[["includes_relatives"]]) cat("**Note:** Not Applicable.\n\n")
 
 lmendel_file_check <- params[["includes_relatives"]]
-```
 
-```{r lmendel-error-01, eval = params[["includes_relatives"]]}
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "raw_data_good_samples"), 
-  "--mendel",
-  "--out ", file.path(temp_directory, "raw_data_good_samples")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
-
-lmendel_file_check <- file.exists(file.path(temp_directory, "raw_data_good_samples.lmendel"))
-
-cat(
-  "The variant-wise Mendel error was estimated using the `--mendel` command in PLINK.  \n",
-  "The per-variant error rate threshold is `", params[["mendelian_snp"]], "`.\n\n", 
-  sep = ""
-)
-
-if (!lmendel_file_check) {
-  cat("Mendel error rates check was not performed due to missing informations.\n\n")
-} else {
-  mendel_error_snps <- data.table::fread(file.path(temp_directory, "raw_data_good_samples.lmendel")) %>%
-    dplyr::mutate(percentage = N / dplyr::n()) %>%
-    dplyr::arrange(percentage)
+if (params[["includes_relatives"]]) {
+  sys(paste(plink, 
+    "--bfile", file.path(temp, "data_good_samples"), 
+    "--mendel",
+    "--out ", file.path(temp, "data_good_samples")
+  ))
+  
+  lmendel_file_check <- file.exists(file.path(temp, "data_good_samples.lmendel"))
+  
+  cat(
+    "The variant-wise Mendel error was estimated using the `--mendel` command in PLINK.  \n",
+    "The per-variant error rate threshold is `", params[["mendelian_snp"]], "`.\n\n", 
+    sep = ""
+  )
+  
+  if (!lmendel_file_check) {
+    cat("Mendel error rates check was not performed due to missing informations.\n\n")
+  } else {
+    mendel_error_snps <- data.table::fread(file.path(temp, "data_good_samples.lmendel"))[, percentage := N / .N][order(percentage)]
+  }
 }
 ```
 
-```{r lmendel-error-02, eval = params[["includes_relatives"]] & lmendel_file_check, fig.cap = paste("Mendel error rate per variant.", scales::comma(sum(mendel_error_snps[["percentage"]] > params[["mendelian_snp"]])), "variants with more than", scales::percent(x = params[["mendelian_snp"]], accuracy = 0.01), "Mendel errors rate were excluded.")}
-ggplot2::ggplot(
-  data = mendel_error_snps,
-  mapping = ggplot2::aes(x = seq_len(percent), y = percent)
-) +
+```{r lmendel-error-fig, eval = params[["includes_relatives"]] & lmendel_file_check}
+ggplot2::ggplot(data = mendel_error_snps, mapping = ggplot2::aes(x = seq_len(percentage), y = percentage)) +
   ggplot2::geom_point(
     colour = scales::viridis_pal(begin = 0.5, end = 0.5)(1), 
     shape = 1, 
     na.rm = TRUE
   ) +
   ggplot2::geom_hline(yintercept = params[["mendelian_snp"]], colour = "firebrick2", linetype = 2) +
-  ggplot2::scale_x_continuous(labels = scales::comma_format(accuracy = 1), trans = "log10") +
-  ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 0.1)) +
-  ggplot2::labs(x = "Variants", y = "Mendel Error Rate")
+  ggplot2::scale_x_continuous(labels = comma, trans = "log10") +
+  ggplot2::scale_y_continuous(labels = percent1) +
+  ggplot2::labs(
+    x = "Number of Variants", 
+    y = "Mendel Error Rate", 
+    title = "Mendel Error Rate"
+  )
 ```
 
 ```{r uniq-snps-list, include = FALSE}
 if (lmendel_file_check) {
-  cat(
-    setdiff(
-      uniq_snps[["SNP"]], 
-      dplyr::filter(mendel_error_snps, percentage > params[["mendelian_snp"]])[["SNP"]]
-    ),
-    sep = "\n", 
-    file = file.path(temp_directory, "uniq_snps_list.txt")
-  )
+  uniq_snps_vec <- setdiff(uniq_snps[["SNP"]], mendel_error_snps[percentage > params[["mendelian_snp"]], SNP])
 } else {
-  cat(
-    uniq_snps[["SNP"]], 
-    sep = "\n", 
-    file = file.path(temp_directory, "uniq_snps_list.txt")
-  )
+  uniq_snps_vec <- uniq_snps[["SNP"]]
 }
+cat(uniq_snps_vec, sep = "\n", file = file.path(temp, "uniq_snps_list.txt"))
 ```
 
-
-## Minor allele frequency distribution
+## Minor Allele Frequency Distribution
 
 The MAF were computed using the `--freq` command in PLINK.
 
-```{r maf-01, include = FALSE}
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "raw_data_good_samples"), 
-  "--extract", file.path(temp_directory, "uniq_snps_list.txt"),
+```{r maf, include = FALSE}
+sys(paste(plink, 
+  "--bfile", file.path(temp, "data_good_samples"), 
+  "--extract", file.path(temp, "uniq_snps_list.txt"),
   "--freq",
-  "--out", file.path(temp_directory, "raw_data_good_samples")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
+  "--out", file.path(temp, "data_good_samples")
+))
 ```
 
-```{r maf-02, fig.cap = "Distribution of variants number per class of minor allele frequency (MAF)"}
-data.table::fread(file.path(temp_directory, "raw_data_good_samples.frq")) %>%
-  dplyr::mutate(
-    maf_dist = cut(MAF, breaks = c(0, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5), include.lowest = TRUE)
-  ) %>% 
-  tidyr::drop_na(MAF) %>% 
-  ggplot2::ggplot(
-    mapping = ggplot2::aes(x = maf_dist)
-  ) +
-    ggplot2::geom_bar(fill = scales::viridis_pal(begin = 0.5, end = 0.5)(1)) +
-    ggplot2::labs(x = "MAF", y = "Number of variants") +
-    ggplot2::scale_y_continuous(
-      labels = scales::comma_format(accuracy = 1),
-      expand = ggplot2::expansion(mult = c(0, 0.1))
-    )
+```{r maf-fig}
+ggplot2::ggplot(
+  data = data.table::fread(file.path(temp, "data_good_samples.frq"))[!is.na(MAF)][,
+    maf_bin := cut(MAF, breaks = c(0, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5), include.lowest = TRUE)
+  ],
+  mapping = ggplot2::aes(x = maf_bin)
+) +
+  ggplot2::geom_bar(fill = scales::viridis_pal(begin = 0.5, end = 0.5)(1)) +
+  ggplot2::scale_y_continuous(labels = comma, expand = ggplot2::expansion(mult = c(0, 0.1))) +
+  ggplot2::labs(
+    x = "MAF", 
+    y = "Number of Variants",
+    title = "Distribution of variants number per class of minor allele frequency (MAF)"
+  )
 ```
 
-
-## Hardy-Weinberg equilibrium
-
-```{r hwe-01, include = FALSE}
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "raw_data_good_samples"),
-  "--hardy", 
-  "--out ", file.path(temp_directory, "raw_data_good_samples")
-), ignore.stdout = TRUE, ignore.stderr = TRUE)
-
-hwe_complete <- data.table::fread(file.path(temp_directory, "raw_data_good_samples.hwe")) %>%
-  tidyr::drop_na(P)
-
-hwe_significant <- hwe_complete %>%
-  dplyr::filter(P < params[["hwe_pvalue"]] * 10) %>%
-  dplyr::arrange(P)
-```
+## Hardy-Weinberg Equilibrium
 
 Hardy-Weinberg equilibrium (HWE) p-value was computed using the `--hardy` command in PLINK.
 
-In total, **`r scales::comma(sum(hwe_complete[, "P"] < params[["hwe_pvalue"]]))`** variants 
-had a HWE p-value below `r scales::scientific(params[["hwe_pvalue"]])` and were excluded.  
+```{r hwe, include = FALSE}
+sys(paste(plink, 
+  "--bfile", file.path(temp, "data_good_samples"),
+  "--hardy", 
+  "--out ", file.path(temp, "data_good_samples")
+))
 
-```{r hwe-02, fig.cap = paste0("The distribution of Hardy-Weinberg Equilibrium (HWE) p-values ", "for variants with HWE p-value < ", scales::scientific(params[["hwe_pvalue"]] * 10), ". ", "The horizontal red line denotes the ", scales::scientific(params[["hwe_pvalue"]]), " cut-off.")}
-ggplot2::ggplot(data = hwe_significant) +
+hwe_complete <- data.table::fread(file.path(temp, "data_good_samples.hwe"))[!is.na(P)]
+hwe_significant <- hwe_complete[P < 1e-3][order(P)]
+n_snps_hwe <- hwe_complete[, sum(P < params[["hwe_pvalue"]])]
+```
+
+In total, **`r comma(n_snps_hwe)`** variants had a HWE p-value below `r scientific(params[["hwe_pvalue"]])` and were excluded.  
+
+```{r hwe-fig, warning = FALSE}
+p <- ggplot2::ggplot(data = hwe_significant, mapping = ggplot2::aes(x = 1:length(P), y = P)) +
   ggplot2::geom_point(
-    mapping = ggplot2::aes(x = 1:length(P), y = P),
     colour = scales::viridis_pal(begin = 0.5, end = 0.5)(1), 
     shape = 1, 
     na.rm = TRUE
   ) +
   ggplot2::geom_hline(yintercept = params[["hwe_pvalue"]], colour = "firebrick2", linetype = 2) +
-  ggplot2::scale_x_continuous(labels = scales::comma_format(accuracy = 1), trans = "log10") +
-  ggplot2::scale_y_continuous(trans = pval_trans()) +
-  ggplot2::labs(x = "Variants", y = "Hardy-Weinberg Equilibrium P-value")
+  ggplot2::geom_vline(xintercept = n_snps_hwe, colour = "firebrick2", linetype = 2) +
+  ggplot2::scale_x_continuous(
+    labels = comma,
+    trans = "log10",
+    guide = ggplot2::guide_axis(check.overlap = TRUE), 
+    sec.axis = ggplot2::dup_axis(
+      labels = function(x) paste0("<b style = 'color:firebrick2;'>", comma(x), "</b>"),
+      breaks = n_snps_hwe, 
+      name = NULL
+    )
+  ) +
+  ggplot2::scale_y_continuous(trans = pval_trans(alpha = params[["hwe_pvalue"]], md = TRUE)) +
+  ggplot2::labs(
+    x = "Number of Variants", 
+    y = "Hardy-Weinberg Equilibrium P-value",
+    title = "Distribution of Hardy-Weinberg Equilibrium (HWE) P-values",
+    subtitle = paste(
+      "The horizontal red line (\"<b style = 'color:firebrick2;'>---</b>\") denotes the",
+      "cut-off for significance above which variants are excluded."
+    ),
+    caption = paste(
+      "Variants with a HWE p-value ≥ 10<sup>-3</sup> are not shown."
+    )
+  )
+
+suppressWarnings({ print(p) })
 ```
 
 ```{r file-management, include = FALSE}
-imputation_filename <- file.path(temp_directory, paste0(params[["cohort_name"]], "_forimputation"))
+imputation_filename <- file.path(temp, paste0(params[["cohort_name"]], "_forimputation"))
 
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
-  "--bfile", file.path(temp_directory, "raw_data"), 
+sys(paste(plink, 
+  "--bfile", file.path(temp, "data"), 
   "--set-hh-missing", 
-  "--remove", file.path(temp_directory, "samples_excluded.txt"),
+  "--remove", file.path(temp, "samples_excluded.txt"),
   "--geno", 1 - params[["callrate_snps"]],
-  "--extract", file.path(temp_directory, "uniq_snps_list.txt"), 
+  "--extract", file.path(temp, "uniq_snps_list.txt"), 
   "--hwe", params[["hwe_pvalue"]],
   "--make-bed", 
   "--out", paste0(imputation_filename, "_tmp1")
 ))
 
 if (file.exists(paste0(imputation_filename, "_tmp1.hh"))) {
-  system(command = paste(
-    params[["bin_path"]][["plink"]], 
+  sys(paste(plink, 
     "--bfile", paste0(imputation_filename, "_tmp1"), 
     "--exclude", paste0(imputation_filename, "_tmp1.hh"), 
     "--make-bed", 
     "--out", imputation_filename
   ))
 } else {
-  system(command = paste(
-    params[["bin_path"]][["plink"]], 
+  sys(paste(plink, 
     "--bfile", paste0(imputation_filename, "_tmp1"), 
     "--make-bed", 
     "--out", imputation_filename
   ))
 }
 
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
+sys(paste(plink, 
   "--bfile", imputation_filename, 
   "--set-hh-missing", 
-  "--remove ", file.path(temp_directory, "samples_excluded.txt"), 
+  "--remove ", file.path(temp, "samples_excluded.txt"), 
   "--geno", 1 - params[["callrate_snps"]], 
-  "--extract", file.path(temp_directory, "uniq_snps_list.txt"),
+  "--extract", file.path(temp, "uniq_snps_list.txt"),
   "--hwe", params[["hwe_pvalue"]],
   "--make-bed", 
   "--out", file.path(params[["output_directory"]], "plink_qc", paste0(params[["cohort_name"]], "_QC"))
 ))
 
-system(command = paste(
-  params[["bin_path"]][["plink"]], 
+sys(paste(plink, 
   "--bfile", imputation_filename, 
   "--freq", 
   "--out", imputation_filename
 ))
 
 if (params[["imputation_ref"]] == "HRC") {
-  system(command = paste(
-    "(cd", temp_directory, "&&",
+  sys(paste(
+    "(cd", temp, "&&",
       "perl", params[["check_bim_script"]],
       "-b", paste0(imputation_filename, ".bim"),
       "-f", paste0(imputation_filename, ".frq"),
       "-r", params[["imputation_panel"]], 
       "-h",
-      "-l", params[["bin_path"]][["plink"]],
+      "-l", plink,
     ")"
   ))
 }
 
 if (params[["imputation_ref"]] == "1KG") {
-  system(command = paste(
-    "(cd", temp_directory, "&&",
+  sys(paste(
+    "(cd", temp, "&&",
       "perl", params[["check_bim_script"]],
       "-b", paste0(imputation_filename, ".bim"),
       "-f", paste0(imputation_filename, ".frq"),
       "-r", params[["imputation_panel"]], 
       "-g", 
       "--pop ALL",
-      "-l", params[["bin_path"]][["plink"]],
+      "-l", plink,
     ")"
   ))
 }
 
-system(paste("cd", temp_directory, "&& bash Run-plink.sh"))
+sys(paste("cd", temp, "&& bash Run-plink.sh"))
 
-utils::write.table(
-  x = t(sapply(
-    X = sprintf(paste0(imputation_filename, "-updated-chr%d"), 2:23),
-    FUN = paste0, c(".bed", ".bim", ".fam"),
-    simplify = TRUE,
-    USE.NAMES = FALSE
-  )),
-  file = file.path(temp_directory, paste0(params[["cohort_name"]], "_forimputation.txt")),
-  col.names = FALSE,
-  row.names = FALSE,
+data.table::fwrite(
+  x = data.table::data.table(sprintf(paste0(imputation_filename, "-updated-chr%d"), 2:23)),
+  file = file.path(temp, paste0(params[["cohort_name"]], "_forimputation.txt")),
+  col.names = FALSE, 
+  row.names = FALSE, 
   quote = FALSE
 )
 
-system(command = paste(
-  params[["bin_path"]][["plink"]],
-  "--bfile", sprintf(paste0(imputation_filename, "-updated-chr%d"), 1),
-  "--merge-list", file.path(temp_directory, paste0(params[["cohort_name"]], "_forimputation.txt")),
+sys(paste(plink,
+  "--merge-list", file.path(temp, paste0(params[["cohort_name"]], "_forimputation.txt")),
   "--recode vcf",
   "--out", imputation_filename
 ))
 
-system(command = paste(
-  params[["bin_path"]][["bgzip"]], 
+sys(paste(params[["bin_path"]][["bgzip"]], 
   "-c", paste0(imputation_filename, ".vcf"),
   ">", paste0(imputation_filename, ".vcf.gz")
 ))
-system(command = paste(
-  params[["bin_path"]][["bcftools"]], "index", paste0(imputation_filename, ".vcf.gz")
-))
+sys(paste(params[["bin_path"]][["bcftools"]], "index", paste0(imputation_filename, ".vcf.gz")))
 
-utils::write.table(
+data.table::fwrite(
   x = structure(
     list(
       V1 = 1:26,
@@ -2382,7 +2199,7 @@ utils::write.table(
     ),
     .Names = c("V1", "V2"), class = "data.frame", row.names = c(NA, -26L)
   ),
-  file = file.path(temp_directory, "plink2ensembl.txt"),
+  file = file.path(temp, "plink2ensembl.txt"),
   row.names = FALSE, 
   col.names = FALSE, 
   quote = FALSE, 
@@ -2390,32 +2207,34 @@ utils::write.table(
 )
 
 if (is.null(params[["ref1kg_fasta"]])) {
-  system(command = paste(
-    params[["bin_path"]][["bcftools"]], "annotate", 
-    "--rename-chrs", file.path(temp_directory, "plink2ensembl.txt"),
+  sys(paste(params[["bin_path"]][["bcftools"]], 
+    "annotate", 
+    "--rename-chrs", file.path(temp, "plink2ensembl.txt"),
     paste0(imputation_filename, ".vcf.gz"),
     "-Oz", 
     ">", file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz"))
   ))
   
-  system(command = paste(
-    params[["bin_path"]][["bcftools"]], "index", 
+  sys(paste(
+    params[["bin_path"]][["bcftools"]], 
+    "index", 
     file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz"))
   ))
 } else {
-  system(command = paste(
-    params[["bin_path"]][["bcftools"]], "annotate", 
-    "--rename-chrs", file.path(temp_directory, "plink2ensembl.txt"),
+  sys(paste(params[["bin_path"]][["bcftools"]], 
+    "annotate", 
+    "--rename-chrs", file.path(temp, "plink2ensembl.txt"),
     paste0(imputation_filename, ".vcf.gz"),
     "-Oz", 
     ">", file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC_tmp.vcf.gz"))
   ))
-  system(command = paste(
-    params[["bin_path"]][["bcftools"]], "index", 
+  sys(paste(
+    params[["bin_path"]][["bcftools"]], 
+    "index", 
     file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC_tmp.vcf.gz"))
   ))
-  system(command = paste(
-    params[["bin_path"]][["bcftools"]], "+fixref", 
+  sys(paste(params[["bin_path"]][["bcftools"]],
+    "+fixref", 
     file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC_tmp.vcf.gz")), 
     "-Ob -o", file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz")),
     "--", 
@@ -2423,15 +2242,15 @@ if (is.null(params[["ref1kg_fasta"]])) {
     "-f", params[["ref1kg_fasta"]], 
     "-m flip"
   ))
-  system(command = paste(
-    params[["bin_path"]][["bcftools"]], "norm", 
+  sys(paste(params[["bin_path"]][["bcftools"]], 
+    "norm", 
     "--check-ref e", 
     "-f ", params[["ref1kg_fasta"]], 
     file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz")), 
     "-o /dev/null"
   ))
-  system(command = paste(
-    params[["bin_path"]][["bcftools"]], "index", 
+  sys(paste(params[["bin_path"]][["bcftools"]], 
+    "index", 
     file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz"))
   ))
 }
@@ -2440,189 +2259,133 @@ unlink(file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_
 unlink(file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC_tmp.vcf.gz.csi")))
 ```
 
-
-
-# Final QC overview (with all filters)
+# QC Summary
 
 ```{r qc-summary, include = FALSE}
-if (file.exists(paste0(params[["input_files"]], ".bim"))) {
-  initial_snps_number <- nrow(data.table::fread(
-    input = paste0(params[["input_files"]], ".bim"), 
-    select = 1
-  ))
-} else {
-  initial_snps_number <- nrow(data.table::fread(
-    input = paste0(params[["input_files"]], ".map"), 
-    select = 1
-  ))
-}
+initial_snps_number <- nrow(data.table::fread(paste0(file.path(temp, "data"), ".bim"), select = 1))
 
-final_snps_number <- nrow(data.table::fread(
-  input = file.path(params[["output_directory"]], "plink_qc", paste0(params[["cohort_name"]], "_QC.bim")), 
-  select = 1
-))
+final_snps_number <- nrow(data.table::fread(file.path(params[["output_directory"]], "plink_qc", paste0(params[["cohort_name"]], "_QC.bim")), select = 1))
 
-if (file.exists(paste0(params[["input_files"]], ".fam"))) {
-  initial_samples_number <- nrow(data.table::fread(
-    input = paste0(params[["input_files"]], ".fam"),
-    select = 1
-  ))
-} else {
-  initial_samples_number <- nrow(data.table::fread(
-    input = paste0(params[["input_files"]], ".ped"), 
-    select = 1
-  ))
-}
+initial_samples_number <- nrow(data.table::fread(paste0(file.path(temp, "data"), ".fam"), select = 1))
 
-final_samples_number <- nrow(data.table::fread(
-  input = file.path(params[["output_directory"]], "plink_qc", paste0(params[["cohort_name"]], "_QC.fam")), 
-  select = 1
-))
+final_samples_number <- nrow(data.table::fread(file.path(params[["output_directory"]], "plink_qc", paste0(params[["cohort_name"]], "_QC.fam")), select = 1))
 
 final_snps_imputation <- nrow(data.table::fread(paste0(imputation_filename, ".bim"), select = 1))
 final_samples_imputation <- nrow(data.table::fread(paste0(imputation_filename, ".fam"), select = 1))
 ```
 
-* Samples previously characterised in Section [Sample-based QC](#sample-qc):
-    + **`r scales::comma(dplyr::n_distinct(dplyr::filter(samples_toexclude_export, Status=="Exclude")[["IID"]]))`**
-        samples excluded due to failures in the call rate and/or the heterozygosity checks.
-    + **`r scales::comma(dplyr::n_distinct(dplyr::filter(samples_toexclude_export, Status=="Check")[["IID"]]))`**
-        samples flagged. 
+* Samples identified in the Section [Sample-based QC](#sample-qc):
+    + **`r comma(nrow(samples_to_exclude_export[Status == "Exclude", unique(.(FID, IID))]))`** samples excluded due to failures in the call rate and/or the heterozygosity checks.
+    + **`r comma(nrow(samples_to_exclude_export[Status == "Check", unique(.(FID, IID))]))`** samples flagged.  
         Those samples need to be checked in order to determine whether or not they have to be excluded.
-* Variant call rate at `r scales::percent(params[["callrate_snps"]], accuracy = 0.01)`.
-* Duplicated variants based on chromosome and position
-* Hardy-Weinberg Equilibrium p-value at `r scales::scientific(params[["hwe_pvalue"]])`
-`r if (params[["includes_relatives"]] & lmendel_file_check) cat("* Per-variant Mendelian error rate (when applicable) at", params[["mendelian_snp"]])`
+* Variants with a call rate below `r percent2(params[["callrate_snps"]])` were removed.
+* Duplicated variants based on chromosome and position were removed.
+* Variants with a Hardy-Weinberg Equilibrium p-value at `r scientific(params[["hwe_pvalue"]])` were removed.
+`r if (params[["includes_relatives"]] & lmendel_file_check) cat("* Variants with a Mendelian error rate below", params[["mendelian_snp"]], "were removed.")`
 
-The initial dataset included **`r scales::comma(initial_samples_number)`** samples 
-and **`r scales::comma(initial_snps_number)`** variants.  
-The final dataset includes **`r scales::comma(final_samples_number)`** samples 
-and **`r scales::comma(final_snps_number)`** variants.  
-The imputation dataset includes **`r scales::comma(final_samples_imputation)`** samples 
-and **`r scales::comma(final_snps_imputation)`** variants.
+The initial dataset included **`r comma(initial_samples_number)`** samples and **`r comma(initial_snps_number)`** variants.  
+The final (PLINK format) dataset includes **`r comma(final_samples_number)`** samples and **`r comma(final_snps_number)`** variants.  
+The dataset for imputation includes **`r comma(final_samples_imputation)`** samples and **`r comma(final_snps_imputation)`** variants.
 
 ```{r qc-summary-table}
-recruit_centre %>%
-  dplyr::select(Sample.Name, Cohort, Gender) %>%
-  dplyr::right_join(
-    y = dplyr::select(samples_toexclude_export, IID, Status), 
-    by = c("Sample.Name" = "IID")
+rbind(
+  merge(
+    x = fam_data[, .(FID, IID, cohort, sex)],
+    y = samples_to_exclude_export[, .(FID, IID, Status)],
+    all.y = TRUE,
+    by = c("FID", "IID")
+  )[, .N, by = c("cohort", "Status")],
+  fam_data[, .(Status = "Clear", N = .N - nrow(samples_to_exclude_export[, unique(.(FID, IID))])), by = "cohort"]
+)[, Pct := N / sum(N)][, Status := factor(Status, levels = c("Clear", "Check", "Exclude"))][order(Status), .(Status, N, Pct)] %>% 
+  gt::gt(rowname_col = "Status", auto_align = "center") %>% 
+  gt::tab_header(
+    title = "Quality-Control Summary",
+    subtitle = gt::md(paste0("*",  params[["cohort_name"]], "*"))
   ) %>% 
-  dplyr::group_by(Cohort, Status, .drop = FALSE) %>%
-  dplyr::count() %>%
-  tidyr::spread(key = Status, value = n) %>% 
-  dplyr::left_join(
-    y = dplyr::select(recruit_centre_table, Cohort, Total), 
-    by = "Cohort"
-  ) %>%
-  dplyr::rowwise() %>% 
-  dplyr::mutate(
-    ExcludeorCheck_pct = scales::percent((Exclude + Check) / Total, accuracy = 0.01),
-    ExcludeorCheck = paste0((Exclude + Check), " / ", Total, " (", ExcludeorCheck_pct, ")") %>% gsub("NaN", "0", .),
-    Check_pct = scales::percent(Check / Total, accuracy = 0.01), 
-    Exclude_pct = scales::percent(Exclude / Total, accuracy = 0.01),
-    Check = paste0(Check, " / ", Total, " (", Check_pct, ")") %>% gsub("NaN", "0", .),
-    Exclude = paste0(Exclude, " / ", Total, " (", Exclude_pct, ")") %>% gsub("NaN", "0", .)
-  ) %>%
-  dplyr::select(
-    Cohort, 
-    Excluded = Exclude, 
-    Flagged = Check, 
-    `Excluded or Flagged` = ExcludeorCheck
-  ) %>% 
-  gt::gt(auto_align = "center") %>% 
+  gt::cols_label(Pct = "Percentage") %>% 
+  gt::fmt_percent(columns = "Pct", decimals = 2, incl_space = TRUE) %>% 
+  gt::grand_summary_rows(columns = "Pct", fns = list(Total = ~ sum(.)), formatter = gt::fmt_percent, incl_space = TRUE) %>% 
+  gt::grand_summary_rows(columns = "N", fns = list(Total = ~ sum(.)), formatter = gt::fmt_number, decimals = 0) %>% 
   gt::opt_row_striping() %>% 
-  gt::tab_header("Excluded samples and flagged samples per cohort.") 
+  gt::opt_all_caps() %>% 
+  print()
 ```
 
 ```{r output-exclusion, include = FALSE}
 output_xlsx <- list()
 
-output_xlsx[["exclude_flag"]] <- samples_toexclude_export %>%
-  dplyr::left_join(
-    y = recruit_centre %>%
-      dplyr::select(Sample.Name, Cohort, Gender) %>%
-      dplyr::mutate(Sample.Name = as.character(Sample.Name)),
-    by = c("IID" = "Sample.Name")
-  ) %>%
-  dplyr::rename(
-    "Ethnicity" = "PCA Outliers",
-    "Cohort PCA outliers" = "Within Cohort PCA outliers"
-  ) %>%
-  dplyr::select(FID, IID, Gender, Cohort, Status, dplyr::everything()) %>% 
-  dplyr::arrange(dplyr::desc(!!as.symbol(colnames(.)[-c(1:4)])))
+output_xlsx[["exclude_flag"]] <- merge(
+  x = samples_to_exclude_export,
+  y = fam_data[, .(FID, IID, Cohort = cohort, Sex = sex)],
+  all.x = TRUE,
+  by = c("FID", "IID")
+)
+data.table::setcolorder(
+  x = output_xlsx[["exclude_flag"]], 
+  neworder = c("FID", "IID", "Sex", "Cohort", "Status", setdiff(names(output_xlsx[["exclude_flag"]]), c("FID", "IID", "Sex", "Cohort", "Status")))
+)
+cols_order <- setdiff(names(output_xlsx[["exclude_flag"]]), c("FID", "IID", "Sex", "Cohort"))
+output_xlsx[["exclude_flag"]] <- output_xlsx[["exclude_flag"]][order(-cols_order)]
 
-if (exists("related_samples")) {
-  output_xlsx[["relatedness"]] <- related_samples %>%
-    dplyr::left_join(
-      y = dplyr::select(recruit_centre, Sample.Name, Cohort),
-      by = c("IID1" = "Sample.Name")
-    ) %>%
-    dplyr::left_join(
-      y = dplyr::select(recruit_centre, Sample.Name, Cohort),
-      by = c("IID2" = "Sample.Name"),
-      suffix = c("1", "2")
-    )
+if (exists("related_samples") && nrow(related_samples) > 0) {
+  output_xlsx[["relatedness"]] <- merge(
+    x = merge(
+      x = related_samples,
+      y = fam_data[, .(FID, IID, Cohort = cohort)],
+      all.x = TRUE,
+      by.x = c("FID1", "IID1"),
+      by.y = c("FID", "IID")
+    ),
+    y = fam_data[, .(FID, IID, Cohort = cohort)],
+    all.x = TRUE,
+    by.x = c("FID2", "IID2"),
+    by.y = c("FID", "IID"),
+    suffix = c("1", "2")
+  )
 }
 
-if (exists("mendel_errors_samples")) {
-  output_xlsx[["Sample_Mendel_Error_Rate"]] <- mendel_errors_samples %>% 
-    dplyr::mutate(
-      `Sample Mendel error rate` = scales::percent(percent, accuracy = 0.01)
-    ) %>% 
-    dplyr::select(-percent)
+if (exists("mendel_errors_samples") && nrow(mendel_errors_samples) > 0) {
+  output_xlsx[["Sample_Mendel_Error_Rate"]] <- mendel_errors_samples[,
+    ("Sample Mendel error rate") := percent2(percent)
+  ][, -c("percent")]
 }
 
-if (nrow(not_target_population) != 0) {
-  output_xlsx[["ethnicity"]] <- dplyr::select(not_target_population, FID, IID, ClosestPop)
+if (exists("not_target_population") && nrow(not_target_population) > 0) {
+  output_xlsx[["ethnicity"]] <- not_target_population[, .(FID, IID, closest_pop)]
 }
 
 writexl::write_xlsx(output_xlsx, path = file.path(params[["output_directory"]], "QC_exclusion.xlsx"))
-unlink(temp_directory, recursive = TRUE)
+unlink(temp, recursive = TRUE)
 ```
 
-
-
-# Technical information
-
+# Technical Information
 
 ## Softwares
 
 ```{r softwares-version, include = FALSE}
-plink_ver <- strsplit(
-  x = system(command = paste(params[["bin_path"]][["plink"]], "--version"), intern = TRUE)[1],
-  split = " "
-)[[1]][2]
-gcta_ver <- paste(strsplit(
-  x = suppressWarnings(system(command = params[["bin_path"]][["gcta"]], intern = TRUE)[3]),
-  split = " "
-)[[1]][3:4], collapse = "-")
-bgzip_ver <- strsplit(
-  x = system(command = paste(params[["bin_path"]][["bgzip"]], "--version"), intern = TRUE)[1],
-  split = " "
-)[[1]][3]
-bcftools_ver <- strsplit(
-  x = system(command = paste(params[["bin_path"]][["bcftools"]], "--version"), intern = TRUE)[1],
-  split = " "
-)[[1]][2]
-check_bim_script_ver <- readLines(params[["check_bim_script"]], warn = FALSE) %>% 
-  grep("^#", ., value = TRUE) %>% 
-  grep("-v[0-9]", ., value = TRUE) %>% 
-  gsub("# *-v", "", .) %>% 
-  gsub(" ", "", .) %>% 
-  package_version() %>% 
-  sort(decreasing = TRUE) %>% 
-  .[1]
+suppressWarnings({
+  plink_ver <- strsplit(system(paste(plink, "--version"), intern = TRUE)[1], split = " ")[[1]][2]
+  gcta_ver <- paste(strsplit(system(params[["bin_path"]][["gcta"]], intern = TRUE)[3], split = " ")[[1]][3:4], collapse = "-")
+  bgzip_ver <- strsplit(system(paste(params[["bin_path"]][["bgzip"]], "--version"), intern = TRUE)[1], split = " ")[[1]][3]
+  bcftools_ver <- strsplit(system(paste(params[["bin_path"]][["bcftools"]], "--version"), intern = TRUE)[1], split = " ")[[1]][2]
+  check_bim_script_ver <- readLines(params[["check_bim_script"]], warn = FALSE) %>% 
+    grep("^#", ., value = TRUE) %>% 
+    grep("-v[0-9]", ., value = TRUE) %>% 
+    gsub("# *-v", "", .) %>% 
+    gsub(" ", "", .) %>% 
+    package_version() %>% 
+    sort(decreasing = TRUE) %>% 
+    .[1]
+})
 ```
 
-* plink `r plink_ver` (Chang et al., 2015; doi:10.1186/s13742-015-0047-8)
-* gcta `r gcta_ver` (Yang et al., 2011; doi:10.1016/j.ajhg.2010.11.011)
-* bgzip `r bgzip_ver` ([http://www.htslib.org/](http://www.htslib.org/))
-* bcftools `r bcftools_ver` ([http://www.htslib.org/](http://www.htslib.org/))
-* `r basename(params[["check_bim_script"]])` `r check_bim_script_ver` (William Rayner, [https://www.well.ox.ac.uk/~wrayner/tools/](https://www.well.ox.ac.uk/~wrayner/tools/))
+* plink `` `r plink_ver` `` (Chang et al., 2015; doi:10.1186/s13742-015-0047-8)
+* gcta `` `r gcta_ver` `` (Yang et al., 2011; doi:10.1016/j.ajhg.2010.11.011)
+* bgzip `` `r bgzip_ver` `` ([http://www.htslib.org/](http://www.htslib.org/))
+* bcftools `` `r bcftools_ver` `` ([http://www.htslib.org/](http://www.htslib.org/))
+* `r basename(params[["check_bim_script"]])` `` `r check_bim_script_ver` `` (William Rayner, [https://www.well.ox.ac.uk/~wrayner/tools/](https://www.well.ox.ac.uk/~wrayner/tools/))
 
-
-## R session information
+## R Session Information
 
 ```{r session-info, results = "markup"}
 options("width" = 110)
