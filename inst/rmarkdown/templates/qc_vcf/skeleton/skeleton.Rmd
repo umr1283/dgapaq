@@ -6,8 +6,7 @@ params:
   author_name: "Firstname Lastname"
   author_affiliation: "Institution"
   author_email: "some@email.com"
-  dpi: 120
-  gg_fontsize: 11
+  vcftools_path: "/usr/bin/vcftools"
 title: '`r params[["title"]]`'
 author:
 - name: '`r params[["author_name"]]`'
@@ -31,47 +30,24 @@ output:
 ```{r setup, include = FALSE}
 options(stringsAsFactors = FALSE)
 
-output_directory <- params[["output_directory"]]
-dir.create(output_directory, recursive = TRUE, showWarnings = FALSE)
 
-### Load packages and functions
-library("bookdown")
-library("data.table")
-library("forcats")
-library("ggplot2")
-library("gt")
-library("knitr")
-library("parallel")
-library("patchwork")
-library("rmarkdown")
-library("scales")
-library("sessioninfo")
-library("tidyr")
-`%>%` <- magrittr::`%>%`
+### Load packages ==================================================================================
+suppressPackageStartupMessages({
+  library("bookdown")
+  library("data.table")
+  library("ggplot2")
+  library("gt")
+  library("knitr")
+  library("parallel")
+  library("patchwork")
+  library("scales")
+  library("sessioninfo")
+})
 
 
-### Set knitr rmarkdown chunk options
-knitr::opts_chunk$set(
-  results = "asis",
-  size = "small",
-  include = TRUE,
-  echo = FALSE,
-  warning = FALSE,
-  message = FALSE,
-  dpi = 120,
-  tidy = FALSE,
-  crop = TRUE,
-  autodep = TRUE,
-  fig.align = "center",
-  fig.pos = "!H"
-)
+### Functions ======================================================================================
+`%>%` <- gt::`%>%`
 
-
-### Define theme
-ggplot2::theme_set(ggplot2::theme_light(base_size = 11))
-
-
-### Functions
 af_tab <- function(data) {
   out <- data[, .(n = .N), by = bin_af][, p := n / sum(n)]
   out <- rbind(out, data.table::data.table(bin_af = "Total", n = sum(out[["n"]]), p = 1))
@@ -101,6 +77,51 @@ info_tab <- function(data) {
     ) %>% 
     gt::opt_row_striping()
 }
+
+fct_explicit_na <- function(x) {
+  factor(
+    x = ifelse(is.na(x), "(Missing)", x), 
+    levels = c(1:nlevels(x), "(Missing)"), 
+    labels = c(levels(x), "(Missing)")
+  )
+}
+
+
+### Environment ====================================================================================
+output_directory <- params[["output_directory"]]
+dir.create(output_directory, showWarnings = FALSE, recursive = TRUE, mode = "0777")
+
+
+### Define theme ===================================================================================
+ggplot2::theme_set(
+  ggplot2::theme_light(base_size = 11) +
+    ggplot2::theme(
+      plot.title.position = "plot", 
+      plot.subtitle = ggplot2::element_text(face = "italic", size = ggplot2::rel(0.8)),
+      plot.caption = ggplot2::element_text(face = "italic", size = ggplot2::rel(0.5)), 
+      plot.caption.position = "plot",
+      legend.box.just = "left", 
+      legend.key.size = ggplot2::unit(0.5, "lines"), 
+      legend.text = ggplot2::element_text(size = ggplot2::rel(0.5))
+    )
+)
+
+
+### knitr settings =================================================================================
+knitr::opts_chunk$set(
+  results = "asis",
+  size = "small",
+  include = TRUE,
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  dpi = 120,
+  tidy = FALSE,
+  crop = TRUE,
+  autodep = TRUE,
+  fig.align = "center",
+  fig.pos = "!H"
+)
 ```
 
 ```{r read, include = FALSE}
@@ -111,7 +132,7 @@ trash <- parallel::mclapply(
   mc.cores = min(parallel::detectCores(), 4),
   FUN = function(ichr) {
     system(paste(
-      "vcftools", 
+      params[["vcftools_path"]], 
       "--gzvcf", ichr, 
       "--get-INFO 'INFO'",
       "--get-INFO 'RefPanelAF'",
@@ -141,8 +162,8 @@ all_chrosomoses <- lapply(
     unlink(file.path(output_directory, basename(ichr)), )
     data.table::setnames(out, "CHROM", "CHR")
     out[, AF := AC / AN]
-    out[, bin_af := forcats::fct_explicit_na(cut(AF, breaks = seq(0, 1, 0.1), include.lowest = TRUE))]
-    out[, bin_info := forcats::fct_explicit_na(cut(INFO, breaks = seq(0, 1, 0.1), include.lowest = TRUE))]
+    out[, bin_af := fct_explicit_na(cut(AF, breaks = seq(0, 1, 0.1), include.lowest = TRUE))]
+    out[, bin_info := fct_explicit_na(cut(INFO, breaks = seq(0, 1, 0.1), include.lowest = TRUE))]
   }
 )
 names(all_chrosomoses) <- gsub("^([^.]+)\\..*", "\\1", basename(list_vcf))
@@ -244,10 +265,7 @@ for (ichr in intersect(c(1:22, "X"), names(all_chrosomoses))) {
   cat("\n\n### Chr", ichr, " {-}\n\n", sep = "")
   tmp <- all_chrosomoses[[ichr]]
   
-  p1 <- ggplot2::ggplot(
-    data = tidyr::drop_na(tmp, INFO),
-    mapping = ggplot2::aes(x = POS, y = seq_along(POS))
-  ) +
+  p1 <- ggplot2::ggplot(data = tmp[!is.na(INFO)], mapping = ggplot2::aes(x = POS, y = seq_along(POS))) +
     ggplot2::geom_point(
       size = 0.1, 
       colour = scales::viridis_pal(begin = 0.5, end = 0.5)(1), 
@@ -278,10 +296,7 @@ for (ichr in intersect(c(1:22, "X"), names(all_chrosomoses))) {
     ggplot2::labs(x = "HRC Alternate Allele Frequency", y = "Alternate Allele Frequency") +
     ggplot2::guides(colour = "none") # ggplot2::guide_legend(override.aes = list(size = 3)))
 
-  p3 <- ggplot2::ggplot(
-    data = tidyr::drop_na(tmp, INFO), 
-    mapping = ggplot2::aes(x = POS, y = INFO, colour = INFO > 0.8)
-  ) +
+  p3 <- ggplot2::ggplot(data = tmp[!is.na(INFO)], mapping = ggplot2::aes(x = POS, y = INFO, colour = INFO > 0.8)) +
     ggplot2::geom_point(size = 0.1, na.rm = TRUE) +
     ggplot2::geom_hline(yintercept = 0.8, colour = "firebrick2", linetype = 2) +
     ggplot2::scale_colour_viridis_d(begin = 0.2, end = 0.8) +
@@ -310,19 +325,11 @@ for (ichr in intersect(c(1:22, "X"), names(all_chrosomoses))) {
     ggplot2::scale_y_continuous(labels = scales::comma, expand = ggplot2::expansion(mult = c(0, 0.20))) +
     ggplot2::labs(x = "INFO Score", y = "SNP Count")
 
-  design <- "
-    12
-    33
-    44
-    55
-  "
-  p_all <- patchwork::wrap_plots(list(p1, p2, p3, p4, p5), design = design) +
+  p_all <- patchwork::wrap_plots(list(p1, p2, p3, p4, p5), design = "12\n33\n44\n55") +
       patchwork::plot_annotation(tag_levels = "A")
   print(p_all)
-
 }
 ```
-
 
 # R session information
 

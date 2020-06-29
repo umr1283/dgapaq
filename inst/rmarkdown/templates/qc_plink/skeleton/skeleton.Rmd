@@ -16,8 +16,8 @@ params:
   hwe_pvalue: 0.0001
   includes_relatives: FALSE
   mendelian_samples: 0.05
-  mendelian_snp: 0.1
-  IBD_threshold: 0.2
+  mendelian_snps: 0.1
+  ibd_threshold: 0.2
   population: NULL
   pca_components: 10
   pca_threshold: 3
@@ -29,7 +29,7 @@ params:
   ref1kg_fasta: "/disks/DATA/ExternalData/1kg/hg19/human_g1k_v37.fasta"
   ref1kg_population: "/disks/DATA/ExternalData/1kg/samples_description/1kg_pop_description.tsv"
   ref1kg_genotypes: "/disks/DATA/ExternalData/1kg/hg19/Genotypes/RawPLINK/ALL/"
-  bin_path: !r list(bcftools = "bcftools", bgzip = "bgzip", plink = "plink1.9", gcta = "gcta64")
+  bin_path: !r list(bcftools = "/usr/bin/bcftools", bgzip = "/usr/bin/bgzip", plink = "/usr/bin/plink1.9", gcta = "/usr/bin/gcta64")
 title: '`r params[["title"]]`'
 author:
 - name: '`r params[["author_name"]]`'
@@ -57,21 +57,20 @@ options(stringsAsFactors = FALSE)
 
 ### Load packages ==================================================================================
 suppressPackageStartupMessages({
-  # library("bookdown")
-  # library("data.table")
-  # library("ggplot2")
-  # library("ggforce")
-  # library("ggrepel")
-  # library("ggtext")
-  # library("here")
-  # library("gt")
-  # library("knitr")
-  # library("parallel")
-  # library("patchwork")
-  # library("scales")
-  # library("stats")
-  # library("sessioninfo")
-  # library("writexl")
+  library("bookdown")
+  library("data.table")
+  library("ggplot2")
+  library("ggforce")
+  library("ggrepel")
+  library("ggtext")
+  library("gt")
+  library("knitr")
+  library("parallel")
+  library("patchwork")
+  library("scales")
+  library("stats")
+  library("sessioninfo")
+  library("writexl")
 })
 
 
@@ -227,7 +226,7 @@ if (length(list.files(dirname(params[["input_files"]]), pattern = ".bed")) != 0)
 * Number of standard deviations (SD) from the mean heterozygosity rate: 
     `` `r params[["heterozygosity_threshold"]]` ``
 * Proportion of identity by descent (IBD) threshold: 
-    `` `r params[["IBD_threshold"]]` ``
+    `` `r params[["ibd_threshold"]]` ``
 * Number of components from the principal component analysis (PCA): 
     `` `r params[["pca_components"]]` ``
 * Number of standard deviations (SD) from the population centroid based on the PCA: 
@@ -240,7 +239,7 @@ if (length(list.files(dirname(params[["input_files"]]), pattern = ".bed")) != 0)
     + Maximum per-trio error rate: 
         `` `r if (params[["includes_relatives"]]) params[["mendelian_samples"]] else "not applicable"` `` 
     + Ma per-variant error rate: 
-        `` `r if (params[["includes_relatives"]]) params[["mendelian_snp"]] else "not applicable"` `` 
+        `` `r if (params[["includes_relatives"]]) params[["mendelian_snps"]] else "not applicable"` `` 
 
 # Cohort Overview
 
@@ -414,6 +413,7 @@ ggplot2::ggplot(
     na.rm = TRUE
   ) +
   ggrepel::geom_label_repel(
+    data = ~ .x[, labs := if (sum(!is.na(labs)) > params[["max_labels"]]) NA else labs],
     mapping = ggplot2::aes(label = labs),
     min.segment.length = ggplot2::unit(0, "lines"),
     force = 10, 
@@ -839,8 +839,8 @@ Prior to the analysis, the dataset was pruned to exclude high-LD-regions,
 that is no variants with MAF < `r params[["maf_threshold"]]` and no pair of variants within 50 Kb have an r² > 0.2.
 
 If the samples in the cohort **`r params[["cohort_name"]]`** are not supposed to be related, 
-the expected pairwise $\hat{\pi}$ ("PI_HAT") should be less than `r params[["IBD_threshold"]]`.  
-Pairs of sample with $\hat{\pi}$ ("PI_HAT") greater than `r params[["IBD_threshold"]]` were flagged.
+the expected pairwise $\hat{\pi}$ ("PI_HAT") should be less than `r params[["ibd_threshold"]]`.  
+Pairs of sample with $\hat{\pi}$ ("PI_HAT") greater than `r params[["ibd_threshold"]]` were flagged.
 
 ```{r relatedness, eval = !params[["includes_relatives"]], include = FALSE}
 ## Pruning Data
@@ -866,7 +866,7 @@ sys(paste(plink,
   "--bfile", file.path(temp, "data_pruned"), 
   "--read-freq", file.path(temp, "data_pruned.frq"), 
   "--genome", 
-  "--min", params[["IBD_threshold"]],  
+  "--min", params[["ibd_threshold"]],  
   "--out", file.path(temp, "data_pruned_freq")
 ))
 
@@ -887,7 +887,7 @@ relatedness <- relatedness[!paste(FID2, IID2, sep = "_") %in% samples_to_exclude
 ```{r relatedness-tab, eval = !params[["includes_relatives"]]}
 relatedness_tab <- relatedness[, .N, by = cut(
   x = PI_HAT,
-  breaks = c(params[["IBD_threshold"]], 0.3, 0.4, 0.6, 0.8, 1),
+  breaks = c(params[["ibd_threshold"]], 0.3, 0.4, 0.6, 0.8, 1),
   include.lowest = TRUE
 )][order(cut)]
 
@@ -904,7 +904,7 @@ if (nrow(relatedness_tab) > 0) {
     gt::cols_label(cut = "IBD Windows", N = "Pair Count") %>% 
     gt::tab_header(paste0(
       'The Distribution Of "PI_HAT" (Proportion Of IBD) For Related Samples In The Dataset ',
-      "(IBD ≥ ", params[["IBD_threshold"]], ")"
+      "(IBD ≥ ", params[["ibd_threshold"]], ")"
     )) %>% 
     gt::opt_row_striping() %>% 
     gt::opt_all_caps() %>% 
@@ -930,7 +930,7 @@ related_samples <- related_samples[, .SD, .SDcols = !c("F_MISS1", "F_MISS2")][or
 related_samples[,
   IBD := cut(
     x = PI_HAT,
-    breaks = c(params[["IBD_threshold"]], 0.3, 0.4, 0.6, 0.8, 1),
+    breaks = c(params[["ibd_threshold"]], 0.3, 0.4, 0.6, 0.8, 1),
     include.lowest = TRUE
   )
 ]
@@ -945,20 +945,20 @@ if (nrow(related_samples) != 0) {
   related_samples %>% 
     gt::gt(groupname_col = "IBD", auto_align = "center") %>% 
     gt::tab_header(paste(
-      "Pairs Of Samples With A Proportion Of IBD Higher Than", params[["IBD_threshold"]]
+      "Pairs Of Samples With A Proportion Of IBD Higher Than", params[["ibd_threshold"]]
     )) %>% 
     gt::opt_row_striping() %>% 
     gt::opt_all_caps() %>% 
     print()
 } else {
-  cat("\n\nNo pairs of samples found with a proportion of IBD higher than", params[["IBD_threshold"]], ".\n\n")
+  cat("\n\nNo pairs of samples found with a proportion of IBD higher than", params[["ibd_threshold"]], ".\n\n")
 }
 
 samples_to_exclude <- rbind(
   samples_to_exclude,
   unique(rbind(
-    relatedness[PI_HAT >= params[["IBD_threshold"]], .(FID = FID1, IID = IID1)],
-    relatedness[PI_HAT >= params[["IBD_threshold"]], .(FID = FID2, IID = IID2)]
+    relatedness[PI_HAT >= params[["ibd_threshold"]], .(FID = FID1, IID = IID1)],
+    relatedness[PI_HAT >= params[["ibd_threshold"]], .(FID = FID2, IID = IID2)]
   ))[, QC := "Relatedness"]
 )
 ```
@@ -1268,7 +1268,7 @@ out <- file.path(temp, "1kgenome_pruned", "1kgenome_pruned_complete")
 sys(paste(plink, "--merge-list", list_1kgenome, "--out", out))
 
 if (file.exists(paste0(out, "-merge.missnp"))) {
-  parallel::mclapply(1:22, mc.cores = 22, function(i) {
+  parallel::mclapply(1:22, mc.cores = min(parallel::detectCores(), 22), function(i) {
     sys(paste(plink, 
       "--bfile", paste0(params[["ref1kg_genotypes"]], "Chr", i),
       "--exclude", paste0(out, "-merge.missnp"),
@@ -1966,7 +1966,7 @@ if (params[["includes_relatives"]]) {
   
   cat(
     "The variant-wise Mendel error was estimated using the `--mendel` command in PLINK.  \n",
-    "The per-variant error rate threshold is `", params[["mendelian_snp"]], "`.\n\n", 
+    "The per-variant error rate threshold is `", params[["mendelian_snps"]], "`.\n\n", 
     sep = ""
   )
   
@@ -1985,7 +1985,7 @@ ggplot2::ggplot(data = mendel_error_snps, mapping = ggplot2::aes(x = seq_len(per
     shape = 1, 
     na.rm = TRUE
   ) +
-  ggplot2::geom_hline(yintercept = params[["mendelian_snp"]], colour = "firebrick2", linetype = 2) +
+  ggplot2::geom_hline(yintercept = params[["mendelian_snps"]], colour = "firebrick2", linetype = 2) +
   ggplot2::scale_x_continuous(labels = comma, trans = "log10") +
   ggplot2::scale_y_continuous(labels = percent1) +
   ggplot2::labs(
@@ -1997,7 +1997,7 @@ ggplot2::ggplot(data = mendel_error_snps, mapping = ggplot2::aes(x = seq_len(per
 
 ```{r uniq-snps-list, include = FALSE}
 if (lmendel_file_check) {
-  uniq_snps_vec <- setdiff(uniq_snps[["SNP"]], mendel_error_snps[percentage > params[["mendelian_snp"]], SNP])
+  uniq_snps_vec <- setdiff(uniq_snps[["SNP"]], mendel_error_snps[percentage > params[["mendelian_snps"]], SNP])
 } else {
   uniq_snps_vec <- uniq_snps[["SNP"]]
 }
@@ -2094,7 +2094,6 @@ sys(paste(plink,
   "--bfile", file.path(temp, "data"), 
   "--set-hh-missing", 
   "--remove", file.path(temp, "samples_excluded.txt"),
-  "--geno", 1 - params[["callrate_snps"]],
   "--extract", file.path(temp, "uniq_snps_list.txt"), 
   "--hwe", params[["hwe_pvalue"]],
   "--make-bed", 
@@ -2118,11 +2117,7 @@ if (file.exists(paste0(imputation_filename, "_tmp1.hh"))) {
 
 sys(paste(plink, 
   "--bfile", imputation_filename, 
-  "--set-hh-missing", 
-  "--remove ", file.path(temp, "samples_excluded.txt"), 
-  "--geno", 1 - params[["callrate_snps"]], 
-  "--extract", file.path(temp, "uniq_snps_list.txt"),
-  "--hwe", params[["hwe_pvalue"]],
+  "--geno", 1 - params[["callrate_snps"]],
   "--make-bed", 
   "--out", file.path(params[["output_directory"]], "plink_qc", paste0(params[["cohort_name"]], "_QC"))
 ))
@@ -2134,7 +2129,7 @@ sys(paste(plink,
 ))
 
 if (params[["imputation_ref"]] == "HRC") {
-  sys(paste(
+  system(paste(
     "(cd", temp, "&&",
       "perl", params[["check_bim_script"]],
       "-b", paste0(imputation_filename, ".bim"),
@@ -2147,7 +2142,7 @@ if (params[["imputation_ref"]] == "HRC") {
 }
 
 if (params[["imputation_ref"]] == "1KG") {
-  sys(paste(
+  system(paste(
     "(cd", temp, "&&",
       "perl", params[["check_bim_script"]],
       "-b", paste0(imputation_filename, ".bim"),
@@ -2160,10 +2155,11 @@ if (params[["imputation_ref"]] == "1KG") {
   ))
 }
 
-sys(paste("cd", temp, "&& bash Run-plink.sh"))
+system(paste("cd", temp, "&& bash Run-plink.sh"))
 
+chr_exists <- file.exists(sprintf(paste0(imputation_filename, "-updated-chr%d.bim"), 1:23))
 data.table::fwrite(
-  x = data.table::data.table(sprintf(paste0(imputation_filename, "-updated-chr%d"), 2:23)),
+  x = data.table::data.table(sprintf(paste0(imputation_filename, "-updated-chr%d"), c(1:23)[which(chr_exists)])),
   file = file.path(temp, paste0(params[["cohort_name"]], "_forimputation.txt")),
   col.names = FALSE, 
   row.names = FALSE, 
@@ -2176,11 +2172,11 @@ sys(paste(plink,
   "--out", imputation_filename
 ))
 
-sys(paste(params[["bin_path"]][["bgzip"]], 
+system(paste(params[["bin_path"]][["bgzip"]], 
   "-c", paste0(imputation_filename, ".vcf"),
   ">", paste0(imputation_filename, ".vcf.gz")
 ))
-sys(paste(params[["bin_path"]][["bcftools"]], "index", paste0(imputation_filename, ".vcf.gz")))
+system(paste(params[["bin_path"]][["bcftools"]], "index", paste0(imputation_filename, ".vcf.gz")))
 
 data.table::fwrite(
   x = structure(
@@ -2207,7 +2203,7 @@ data.table::fwrite(
 )
 
 if (is.null(params[["ref1kg_fasta"]])) {
-  sys(paste(params[["bin_path"]][["bcftools"]], 
+  system(paste(params[["bin_path"]][["bcftools"]], 
     "annotate", 
     "--rename-chrs", file.path(temp, "plink2ensembl.txt"),
     paste0(imputation_filename, ".vcf.gz"),
@@ -2215,25 +2211,25 @@ if (is.null(params[["ref1kg_fasta"]])) {
     ">", file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz"))
   ))
   
-  sys(paste(
+  system(paste(
     params[["bin_path"]][["bcftools"]], 
     "index", 
     file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz"))
   ))
 } else {
-  sys(paste(params[["bin_path"]][["bcftools"]], 
+  system(paste(params[["bin_path"]][["bcftools"]], 
     "annotate", 
     "--rename-chrs", file.path(temp, "plink2ensembl.txt"),
     paste0(imputation_filename, ".vcf.gz"),
     "-Oz", 
     ">", file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC_tmp.vcf.gz"))
   ))
-  sys(paste(
+  system(paste(
     params[["bin_path"]][["bcftools"]], 
     "index", 
     file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC_tmp.vcf.gz"))
   ))
-  sys(paste(params[["bin_path"]][["bcftools"]],
+  system(paste(params[["bin_path"]][["bcftools"]],
     "+fixref", 
     file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC_tmp.vcf.gz")), 
     "-Ob -o", file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz")),
@@ -2242,14 +2238,14 @@ if (is.null(params[["ref1kg_fasta"]])) {
     "-f", params[["ref1kg_fasta"]], 
     "-m flip"
   ))
-  sys(paste(params[["bin_path"]][["bcftools"]], 
+  system(paste(params[["bin_path"]][["bcftools"]], 
     "norm", 
     "--check-ref e", 
     "-f ", params[["ref1kg_fasta"]], 
     file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz")), 
     "-o /dev/null"
   ))
-  sys(paste(params[["bin_path"]][["bcftools"]], 
+  system(paste(params[["bin_path"]][["bcftools"]], 
     "index", 
     file.path(params[["output_directory"]], "vcf_qc", paste0(params[["cohort_name"]], "_QC.vcf.gz"))
   ))
@@ -2281,7 +2277,7 @@ final_samples_imputation <- nrow(data.table::fread(paste0(imputation_filename, "
 * Variants with a call rate below `r percent2(params[["callrate_snps"]])` were removed.
 * Duplicated variants based on chromosome and position were removed.
 * Variants with a Hardy-Weinberg Equilibrium p-value at `r scientific(params[["hwe_pvalue"]])` were removed.
-`r if (params[["includes_relatives"]] & lmendel_file_check) cat("* Variants with a Mendelian error rate below", params[["mendelian_snp"]], "were removed.")`
+`r if (params[["includes_relatives"]] & lmendel_file_check) cat("* Variants with a Mendelian error rate below", params[["mendelian_snps"]], "were removed.")`
 
 The initial dataset included **`r comma(initial_samples_number)`** samples and **`r comma(initial_snps_number)`** variants.  
 The final (PLINK format) dataset includes **`r comma(final_samples_number)`** samples and **`r comma(final_snps_number)`** variants.  

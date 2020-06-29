@@ -11,33 +11,24 @@
 #'     Default is `NULL`.
 #' @param author_email A `character`. The email to be printed in the report.
 #'     Default is `NULL`.
-#' @param cache A `logical`. Should the R code be cached?
-#'     Default is `FALSE`.
-#' @param show_code A `logical`. Should the R code be printed in the report?
-#'     Default is `FALSE`.
-#' @param n_cores A `numeric`. The number of CPUs to use to estimate the ethnicity.
-#'     Default is `1`.
-#' @param dpi A `numeric`. The value for dpi when plotting the data.
-#'     Default is `120`.
-#' @param gg_fontsize A `numeric`. Value for the font size. Default is `12`.
 #' @param encoding A `character`. The encoding to be used for the html report.
 #'     Default is `"UTF-8"`.
+#' @param vcftools_path A `character`. Path to vcftools software binary.
 #' @param ... Parameters to pass to `rmarkdown::render()`.
 #'
 #' @return NULL
 #'
 #' @importFrom bookdown html_document2
+#'
 #' @import data.table
-#' @importFrom forcats fct_explicit_na
 #' @import ggplot2
-#' @importFrom gt gt opt_row_striping cols_label
+#' @import gt
+#' @import patchwork
+#'
 #' @importFrom knitr opts_chunk
-#' @importFrom parallel detectCores mclapply
-#' @importFrom patchwork plot_annotation wrap_plots
-#' @importFrom rmarkdown render
-#' @importFrom scales comma comma_format percent percent_format viridis_pal
+#' @importFrom parallel mclapply detectCores
+#' @importFrom scales comma percent viridis_pal comma_format percent_format
 #' @importFrom sessioninfo session_info
-#' @importFrom tidyr drop_na
 #'
 #' @export
 qc_vcf <- function(
@@ -49,18 +40,13 @@ qc_vcf <- function(
   author_name = "Unknown",
   author_affiliation = NULL,
   author_email = NULL,
-  cache = FALSE,
-  show_code = FALSE,
-  n_cores = 1,
-  dpi = 120,
-  gg_fontsize = 12,
   encoding = "UTF-8",
+  vcftools_path = "/usr/bin/vcftools",
   ...
 ) {
   message_prefix <- "[dgapaq] "
 
   message(message_prefix, "Quality-Control started ...")
-  message(message_prefix, "Note: it can take from one to two hours.")
 
   file.copy(
     from = system.file("rmarkdown", "templates", "qc_impute", "skeleton.Rmd", package = "umr1283"),
@@ -80,27 +66,12 @@ qc_vcf <- function(
       author_name = author_name,
       author_affiliation = author_affiliation,
       author_email = author_email,
-      cache = cache,
-      show_code = show_code,
-      n_cores = n_cores,
-      dpi = dpi,
-      gg_fontsize = gg_fontsize
+      vcftools_path = vcftools_path
     ),
     ...
   )
 
-  message(message_prefix, "Quality-Control ended.")
-
-  message(
-    paste(
-      paste("  ",
-        utils::capture.output(
-          fs::dir_tree(path = normalizePath(output_directory), recurse = FALSE)
-        )
-      ),
-      collapse = "\n"
-    )
-  )
+  message(message_prefix, "Quality-Control ended!")
 
   invisible()
 }
