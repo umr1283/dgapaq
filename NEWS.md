@@ -1,9 +1,11 @@
+# dgapaq (development version)
+
 # dgapaq 0.4.0
 
 ## Major improvements
 
 * In [rmarkdown templates](inst/rmarkdown/templates),
-  + Now uses `data.Table`.
+  + Now uses `data.table`.
   + Now uses `gt`.
   + Now uses `ggplot2`.
   + Improved text, figures and tables.
