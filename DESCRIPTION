@@ -17,34 +17,22 @@ Description: Compute a quality-control report (HTML)
 License: GPL-3
 URL: https://github.com/omicsr/dgapaq
 BugReports: https://github.com/omicsr/dgapaq/issues
-Depends: 
-    R (>= 3.5)
+Depends: R (>= 3.5)
 Imports: 
-    grid,
     parallel,
     stats,
-    utils,
-    bookdown (>= 0.19),
+    bookdown (>= 0.20),
     data.table (>= 1.12.8),
-    dplyr (>= 1.0.0),
-    forcats (>= 0.5.0),
-    fs (>= 1.4.1),
-    ggforce (>= 0.3.1),
-    ggplot2 (>= 3.3.1),
-    ggpubr (>= 0.3.0),
+    ggforce (>= 0.3.2),
+    ggplot2 (>= 3.3.2),
     ggrepel (>= 0.8.2),
+    ggtext (>= 0.1.0),
     gt (>= 0.2.1),
-    Hmisc (>= 4.4.0),
-    knitr (>= 1.28),
-    magrittr (>= 1.5),
-    qdap (>= 2.4.1),
-    readxl (>= 1.3.1),
-    rlang (>= 0.4.6),
-    rmarkdown (>= 2.2),
+    knitr (>= 1.29),
+    patchwork (>= 1.0.1),
+    rmarkdown (>= 2.3),
     scales (>= 1.1.1),
     sessioninfo (>= 1.1.1),
-    tibble (>= 3.0.1),
-    tidyr (>= 1.1.0),
     writexl (>= 1.3)
 Suggests:
     roxygen2 (>= 7.1.0)
@@ -56,6 +44,7 @@ SystemRequirements:
     pandoc (>= 1.12.3) - http://pandoc.org, 
     bcftools (>= 1.10.2), 
     bgzip (>= 1.10.2), 
-    plink1.9 (>= 1.90), 
-    gcta64 (>= 1.92.3), 
-    perl (>= 5.24.1)
+    gcta64 (>= 1.93.2), 
+    perl (>= 5.28.1), 
+    plink1.9 (>= 1.90),
+    vcftools (>= 0.1.16)

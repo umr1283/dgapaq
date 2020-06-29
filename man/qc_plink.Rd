@@ -12,34 +12,31 @@ qc_plink(
   array = NULL,
   callrate_samples = 0.95,
   callrate_snps = 0.95,
+  sex_threshold = c(0.2, 0.8),
   heterozygosity_threshold = 4,
   maf_threshold = 0.01,
   hwe_pvalue = 1e-04,
   includes_relatives = FALSE,
   mendelian_samples = 0.05,
-  mendelian_snp = 0.1,
-  IBD_threshold = 0.2,
+  mendelian_snps = 0.1,
+  ibd_threshold = 0.2,
   population = NULL,
   pca_components = 10,
   pca_threshold = 3,
+  max_labels = 15,
   check_bim_script = system.file("perl", "HRC-1000G-check-bim.pl", package = "dgapaq"),
+  imputation_ref = "1KG",
+  imputation_panel = "1000GP_Phase3_combined.legend",
   ref1kg_panel = "integrated_call_samples_v3.20130502.ALL.panel",
   ref1kg_fasta = NULL,
   ref1kg_population = "20131219.populations.tsv",
   ref1kg_genotypes = NULL,
-  imputation_ref = "1KG",
-  imputation_panel = "1000GP_Phase3_combined.legend",
   bin_path = list(bcftools = "/usr/bin/bcftools", bgzip = "/usr/bin/bgzip", plink =
     "/usr/bin/plink1.9", gcta = "/usr/bin/gcta64"),
   title = paste(array, "Array Quality-Control"),
   author_name = "Unknown",
   author_affiliation = NULL,
   author_email = NULL,
-  cache = FALSE,
-  show_code = FALSE,
-  n_cores = 1,
-  dpi = 120,
-  gg_fontsize = 12,
   encoding = "UTF-8",
   ...
 )
@@ -62,6 +59,8 @@ Default is \code{0.95}.}
 \item{callrate_snps}{A \code{numeric}. The call rate threshold for probes, under which probes are excluded.
 Default is \code{0.95}.}
 
+\item{sex_threshold}{A \code{vector(numeric)}. The sex threshold to use to define the genotypic sex in PLINK.}
+
 \item{heterozygosity_threshold}{A \code{numeric}. The heterozygosity threshold for samples
 (number of standard deviation from the mean), under/above which samples are excluded.
 Default is \code{4}.}
@@ -78,10 +77,10 @@ Default is \code{FALSE}.}
 \item{mendelian_samples}{A \code{numeric}. The Mendel error rate threshold above which samples are excluded.
 Default is \code{0.05}.}
 
-\item{mendelian_snp}{A \code{numeric}. The Mendel error rate threshold above which variants are excluded.
+\item{mendelian_snps}{A \code{numeric}. The Mendel error rate threshold above which variants are excluded.
 Default is \code{0.1}.}
 
-\item{IBD_threshold}{A \code{numeric}. The threshold for IBD (identical by descent) above which
+\item{ibd_threshold}{A \code{numeric}. The threshold for IBD (identical by descent) above which
 samples are characterised as relatives.
 Default is \code{0.2}.}
 
@@ -95,9 +94,17 @@ Default is \code{10}.}
 the as number of standard deviation from the cohort centroid.
 Default is \code{3}.}
 
+\item{max_labels}{A \code{numeric}. The maximum number of labels to show on plots. Default is \code{15}.}
+
 \item{check_bim_script}{A \code{character}. The PERL script to use to check PLINK files to allow later imputation.
 Default is \code{system.file("perl", "HRC-1000G-check-bim.pl", package = "dgapaq")}.
 Script from https://www.well.ox.ac.uk/~wrayner/tools/.}
+
+\item{imputation_ref}{A \code{character} giving the imputation panel to check against, \emph{e.g.}, \verb{1KG} (default) or \code{HRC}.}
+
+\item{imputation_panel}{A \code{character}. The \verb{*.legend} file from 1,000 Genome project or \verb{*.tab} file from HRC.
+Default is \code{"1000GP_Phase3_combined.legend"}.
+\verb{*.legend} file can be downloaded from https://www.well.ox.ac.uk/~wrayner/tools/1000GP_Phase3_combined.legend.gz.}
 
 \item{ref1kg_panel}{A \code{character}. The \verb{*.panel} file from 1,000 Genome project.
 Default is \code{"integrated_call_samples_v3.20130502.ALL.panel"}.
@@ -115,12 +122,6 @@ The \verb{*.tsv} file can be downloaded from ftp://ftp.1000genomes.ebi.ac.uk/vol
 Default is \code{NULL}.
 \verb{*vcf} files can be downloaded from ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/.}
 
-\item{imputation_ref}{A \code{character} giving the imputation panel to check against, \emph{e.g.}, \verb{1KG} (default) or \code{HRC}.}
-
-\item{imputation_panel}{A \code{character}. The \verb{*.legend} file from 1,000 Genome project or \verb{*.tab} file from HRC.
-Default is \code{"1000GP_Phase3_combined.legend"}.
-\verb{*.legend} file can be downloaded from https://www.well.ox.ac.uk/~wrayner/tools/1000GP_Phase3_combined.legend.gz.}
-
 \item{bin_path}{A \code{list(character)}. A list giving the binary path of \code{bcftools}, \code{bgzip}, \code{gcta} and \code{plink1.9}.}
 
 \item{title}{A \code{character}. The report's title. Default is \code{paste(array, "Array Quality-Control")}.}
@@ -133,20 +134,6 @@ Default is \code{NULL}.}
 
 \item{author_email}{A \code{character}. The email to be printed in the report.
 Default is \code{NULL}.}
-
-\item{cache}{A \code{logical}. Should the R code be cached?
-Default is \code{FALSE}.}
-
-\item{show_code}{A \code{logical}. Should the R code be printed in the report?
-Default is \code{FALSE}.}
-
-\item{n_cores}{A \code{numeric}. The number of CPUs to use to estimate the ethnicity.
-Default is \code{1}.}
-
-\item{dpi}{A \code{numeric}. The value for dpi when plotting the data.
-Default is \code{120}.}
-
-\item{gg_fontsize}{A \code{numeric}. Value for the font size. Default is \code{12}.}
 
 \item{encoding}{A \code{character}. The encoding to be used for the html report.
 Default is \code{"UTF-8"}.}

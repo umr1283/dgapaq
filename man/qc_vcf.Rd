@@ -13,12 +13,8 @@ qc_vcf(
   author_name = "Unknown",
   author_affiliation = NULL,
   author_email = NULL,
-  cache = FALSE,
-  show_code = FALSE,
-  n_cores = 1,
-  dpi = 120,
-  gg_fontsize = 12,
   encoding = "UTF-8",
+  vcftools_path = "/usr/bin/vcftools",
   ...
 )
 }
@@ -42,22 +38,10 @@ Default is \code{NULL}.}
 \item{author_email}{A \code{character}. The email to be printed in the report.
 Default is \code{NULL}.}
 
-\item{cache}{A \code{logical}. Should the R code be cached?
-Default is \code{FALSE}.}
-
-\item{show_code}{A \code{logical}. Should the R code be printed in the report?
-Default is \code{FALSE}.}
-
-\item{n_cores}{A \code{numeric}. The number of CPUs to use to estimate the ethnicity.
-Default is \code{1}.}
-
-\item{dpi}{A \code{numeric}. The value for dpi when plotting the data.
-Default is \code{120}.}
-
-\item{gg_fontsize}{A \code{numeric}. Value for the font size. Default is \code{12}.}
-
 \item{encoding}{A \code{character}. The encoding to be used for the html report.
 Default is \code{"UTF-8"}.}
+
+\item{vcftools_path}{A \code{character}. Path to vcftools software binary.}
 
 \item{...}{Parameters to pass to \code{rmarkdown::render()}.}
 }
