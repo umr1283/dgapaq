@@ -326,7 +326,7 @@ for (ichr in intersect(c(1:22, "X"), names(all_chrosomoses))) {
     ggplot2::labs(x = "INFO Score", y = "SNP Count")
 
   p_all <- patchwork::wrap_plots(list(p1, p2, p3, p4, p5), design = "12\n33\n44\n55") +
-      patchwork::plot_annotation(tag_levels = "A")
+    patchwork::plot_annotation(tag_levels = "A")
   print(p_all)
 }
 ```
