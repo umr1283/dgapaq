@@ -31,6 +31,28 @@ output:
 options(stringsAsFactors = FALSE)
 
 
+### Environment ====================================================================================
+output_directory <- params[["output_directory"]]
+dir.create(output_directory, showWarnings = FALSE, recursive = TRUE, mode = "0777")
+
+
+### knitr settings =================================================================================
+knitr::opts_chunk$set(
+  results = "asis",
+  size = "small",
+  include = TRUE,
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  dpi = 120,
+  tidy = FALSE,
+  crop = TRUE,
+  autodep = TRUE,
+  fig.align = "center",
+  fig.pos = "!H"
+)
+
+
 ### Load packages ==================================================================================
 suppressPackageStartupMessages({
   library("bookdown")
@@ -43,6 +65,21 @@ suppressPackageStartupMessages({
   library("scales")
   library("sessioninfo")
 })
+
+
+### Define theme ===================================================================================
+ggplot2::theme_set(
+  ggplot2::theme_light(base_size = 11) +
+    ggplot2::theme(
+      plot.title.position = "plot", 
+      plot.subtitle = ggplot2::element_text(face = "italic", size = ggplot2::rel(0.8)),
+      plot.caption = ggplot2::element_text(face = "italic", size = ggplot2::rel(0.5)), 
+      plot.caption.position = "plot",
+      legend.box.just = "left", 
+      legend.key.size = ggplot2::unit(0.5, "lines"), 
+      legend.text = ggplot2::element_text(size = ggplot2::rel(0.5))
+    )
+)
 
 
 ### Functions ======================================================================================
@@ -85,43 +122,6 @@ fct_explicit_na <- function(x) {
     labels = c(levels(x), "(Missing)")
   )
 }
-
-
-### Environment ====================================================================================
-output_directory <- params[["output_directory"]]
-dir.create(output_directory, showWarnings = FALSE, recursive = TRUE, mode = "0777")
-
-
-### Define theme ===================================================================================
-ggplot2::theme_set(
-  ggplot2::theme_light(base_size = 11) +
-    ggplot2::theme(
-      plot.title.position = "plot", 
-      plot.subtitle = ggplot2::element_text(face = "italic", size = ggplot2::rel(0.8)),
-      plot.caption = ggplot2::element_text(face = "italic", size = ggplot2::rel(0.5)), 
-      plot.caption.position = "plot",
-      legend.box.just = "left", 
-      legend.key.size = ggplot2::unit(0.5, "lines"), 
-      legend.text = ggplot2::element_text(size = ggplot2::rel(0.5))
-    )
-)
-
-
-### knitr settings =================================================================================
-knitr::opts_chunk$set(
-  results = "asis",
-  size = "small",
-  include = TRUE,
-  echo = FALSE,
-  warning = FALSE,
-  message = FALSE,
-  dpi = 120,
-  tidy = FALSE,
-  crop = TRUE,
-  autodep = TRUE,
-  fig.align = "center",
-  fig.pos = "!H"
-)
 ```
 
 ```{r read, include = FALSE}
