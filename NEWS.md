@@ -1,4 +1,4 @@
-# dgapaq (development version)
+# dgapaq 0.4.1
 
 * In [rmarkdown templates](inst/rmarkdown/templates),
     + Reorder code in setup chunk.
