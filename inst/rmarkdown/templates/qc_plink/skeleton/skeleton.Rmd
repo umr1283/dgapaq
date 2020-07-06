@@ -55,6 +55,40 @@ editor_options:
 options(stringsAsFactors = FALSE)
 
 
+### Environment ====================================================================================
+output_directory <- params[["output_directory"]]
+invisible(
+  sapply(
+    X = file.path(output_directory, c("tmp", "plink_qc", "vcf_qc")), 
+    FUN = dir.create,
+    showWarnings = FALSE, 
+    recursive = TRUE, 
+    mode = "0777"
+  )
+)
+temp <- file.path(output_directory, "tmp")
+dir.create(file.path(temp, "1kgenome_pruned"), showWarnings = FALSE, recursive = TRUE, mode = "0777")
+
+plink <- params[["bin_path"]][["plink"]]
+
+
+### knitr settings =================================================================================
+knitr::opts_chunk$set(
+  results = "asis",
+  size = "small",
+  include = TRUE,
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  dpi = 120,
+  tidy = FALSE,
+  crop = TRUE,
+  autodep = TRUE,
+  fig.align = "center",
+  fig.pos = "!H"
+)
+
+
 ### Load packages ==================================================================================
 suppressPackageStartupMessages({
   library("bookdown")
@@ -72,6 +106,25 @@ suppressPackageStartupMessages({
   library("sessioninfo")
   library("writexl")
 })
+
+
+### Define theme ===================================================================================
+ggplot2::theme_set(
+  ggplot2::theme_light(base_size = 11) +
+    ggplot2::theme(
+      plot.title = ggtext::element_markdown(), 
+      plot.title.position = "plot", 
+      plot.subtitle = ggtext::element_markdown(face = "italic", size = ggplot2::rel(0.8)),
+      plot.caption = ggtext::element_markdown(face = "italic", size = ggplot2::rel(0.5)), 
+      plot.caption.position = "plot",
+      axis.text.x = ggtext::element_markdown(), 
+      axis.text.x.top = ggtext::element_markdown(), 
+      axis.text.y = ggtext::element_markdown(), 
+      legend.box.just = "left", 
+      legend.key.size = ggplot2::unit(0.5, "lines"), 
+      legend.text = ggtext::element_markdown(size = ggplot2::rel(0.5))
+    )
+)
 
 
 ### Functions ======================================================================================
@@ -138,59 +191,6 @@ pval_trans <- function(alpha = NULL, md = FALSE, prefix = FALSE) {
     })
   )
 }
-
-
-### Environment ====================================================================================
-output_directory <- params[["output_directory"]]
-invisible(
-  sapply(
-    X = file.path(output_directory, c("tmp", "plink_qc", "vcf_qc")), 
-    FUN = dir.create,
-    showWarnings = FALSE, 
-    recursive = TRUE, 
-    mode = "0777"
-  )
-)
-temp <- file.path(output_directory, "tmp")
-dir.create(file.path(temp, "1kgenome_pruned"), showWarnings = FALSE, recursive = TRUE, mode = "0777")
-
-plink <- params[["bin_path"]][["plink"]]
-
-
-### Define theme ===================================================================================
-ggplot2::theme_set(
-  ggplot2::theme_light(base_size = 11) +
-    ggplot2::theme(
-      plot.title = ggtext::element_markdown(), 
-      plot.title.position = "plot", 
-      plot.subtitle = ggtext::element_markdown(face = "italic", size = ggplot2::rel(0.8)),
-      plot.caption = ggtext::element_markdown(face = "italic", size = ggplot2::rel(0.5)), 
-      plot.caption.position = "plot",
-      axis.text.x = ggtext::element_markdown(), 
-      axis.text.x.top = ggtext::element_markdown(), 
-      axis.text.y = ggtext::element_markdown(), 
-      legend.box.just = "left", 
-      legend.key.size = ggplot2::unit(0.5, "lines"), 
-      legend.text = ggtext::element_markdown(size = ggplot2::rel(0.5))
-    )
-)
-
-
-### knitr settings =================================================================================
-knitr::opts_chunk$set(
-  results = "asis",
-  size = "small",
-  include = TRUE,
-  echo = FALSE,
-  warning = FALSE,
-  message = FALSE,
-  dpi = 120,
-  tidy = FALSE,
-  crop = TRUE,
-  autodep = TRUE,
-  fig.align = "center",
-  fig.pos = "!H"
-)
 ```
 
 ```{r data}
