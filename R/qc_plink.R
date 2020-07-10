@@ -68,23 +68,6 @@
 #'
 #' @return NULL
 #'
-#' @importFrom bookdown html_document2
-#'
-#' @import data.table
-#' @import ggplot2
-#' @import gt
-#' @import patchwork
-#'
-#' @importFrom ggforce geom_mark_ellipse
-#' @importFrom ggrepel geom_label_repel
-#' @importFrom ggtext element_markdown
-#' @importFrom knitr opts_chunk
-#' @importFrom parallel mclapply detectCores
-#' @importFrom scales percent_format comma_format scientific trans_new viridis_pal
-#' @importFrom stats sd quantile IQR relevel
-#' @importFrom sessioninfo session_info
-#' @importFrom writexl write_xlsx
-#'
 #' @export
 qc_plink <- function(
   input_files = NULL,
@@ -126,10 +109,17 @@ qc_plink <- function(
   message(message_prefix, "Quality-Control started ...")
 
   invisible(file.copy(
-    from = system.file("rmarkdown", "templates", "qc_plink", "skeleton.Rmd", package = "umr1283"),
+    from = system.file("rmarkdown", "templates", "qc_plink", "skeleton.Rmd", package = "dgapaq"),
     to = file.path(tempdir(), "qc_plink.Rmd"),
     overwrite = TRUE
   ))
+
+  if (!all(sapply(
+    X = strsplit(gsub("\\([^()]+\\)|\n| ", "", utils::packageDescription("dgapaq", fields = "Suggests")), ",")[[1]],
+    FUN = function(x) nchar(system.file(package = x)) > 0
+  ))) {
+    stop(message_prefix, "Packages listed in 'Suggests' field are needed to run this function.")
+  }
 
   rmarkdown::render(
     input = file.path(tempdir(), "qc_plink.Rmd"),

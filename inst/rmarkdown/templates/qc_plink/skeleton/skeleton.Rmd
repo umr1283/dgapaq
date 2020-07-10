@@ -430,19 +430,8 @@ ggplot2::ggplot(
   ) +
   ggplot2::scale_x_continuous(labels = comma, trans = "log10") +
   ggplot2::scale_y_continuous(
-    breaks = (function(n = 5, cr_thresh = params[["callrate_samples"]], ...) {
-      function(x) {
-        x <- x[is.finite(x)]
-        if (length(x) == 0) {
-          return(numeric())
-        }
-        rng <- range(x)
-        c(labeling::extended(rng[1], rng[2], n, ...), cr_thresh)
-      }
-    })(),
-    labels = (function(x, cr_thresh = params[["callrate_samples"]]) {
-      ifelse(x == cr_thresh, paste0("<b style = 'color:firebrick2;'>", percent1(x), "</b>"), percent1(x))
-    })
+    breaks = function(x) unique(c(scales::breaks_extended()(x), params[["callrate_samples"]])),
+    labels = function(x) ifelse(x == params[["callrate_samples"]], paste0("<b style='color:firebrick2;'>", percent1(x), "</b>"), percent1(x))
   ) +
   ggplot2::labs(x = "Number of Samples", y = "Call Rate", title = "Sample Call Rate")
 ```
@@ -603,19 +592,8 @@ ggplot2::ggplot(
   ) +
   ggplot2::scale_x_continuous(breaks = c(0, params[["sex_threshold"]], 1), labels = percent1) +
   ggplot2::scale_y_continuous(
-    breaks = (function(n = 5, cr_thresh = params[["callrate_samples"]], ...) {
-      function(x) {
-        x <- x[is.finite(x)]
-        if (length(x) == 0) {
-          return(numeric())
-        }
-        rng <- range(x)
-        c(labeling::extended(rng[1], rng[2], n, ...), cr_thresh)
-      }
-    })(),
-    labels = (function(x, cr_thresh = params[["callrate_samples"]]) {
-      ifelse(x == cr_thresh, paste0("<b style = 'color:firebrick2;'>", percent1(x), "</b>"), percent1(x))
-    })
+    breaks = function(x) unique(c(scales::breaks_extended()(x), params[["callrate_samples"]])),
+    labels = function(x) ifelse(x == params[["callrate_samples"]], paste0("<b style='color:firebrick2;'>", percent1(x), "</b>"), percent1(x))
   ) +
   ggplot2::labs(
     x = "Homozygosity Rate",
@@ -773,20 +751,9 @@ plot_het <- function(data, params) {
       na.rm = TRUE
     ) + 
     ggplot2::scale_colour_viridis_c(begin = 0.2, end = 0.8, trans = "sqrt") +
-    ggplot2::scale_x_continuous(
-      breaks = (function(n = 5, cr_thresh = params[["callrate_samples"]], ...) {
-        function(x) {
-          x <- x[is.finite(x)]
-          if (length(x) == 0) {
-            return(numeric())
-          }
-          rng <- range(x)
-          c(labeling::extended(rng[1], rng[2], n, ...), cr_thresh)
-        }
-      })(),
-      labels = (function(x, cr_thresh = params[["callrate_samples"]]) {
-        ifelse(x == cr_thresh, paste0("<b style = 'color:firebrick2;'>", percent1(x), "</b>"), percent1(x))
-      }),
+    ggplot2::scale_y_continuous(
+      breaks = function(x) unique(c(scales::breaks_extended()(x), params[["callrate_samples"]])),
+      labels = function(x) ifelse(x == params[["callrate_samples"]], paste0("<b style='color:firebrick2;'>", percent1(x), "</b>"), percent1(x)),
       guide = ggplot2::guide_axis(angle = 45)
     ) +
     ggplot2::labs(x = "Call Rate", y = "Heterozygosity Rate") +
@@ -1120,19 +1087,8 @@ ggplot2::ggplot(
   ) +
   ggplot2::scale_x_continuous(labels = comma, trans = "log10") +
   ggplot2::scale_y_continuous(
-    breaks = (function(n = 5, me_thresh = params[["mendelian_samples"]], ...) {
-      function(x) {
-        x <- x[is.finite(x)]
-        if (length(x) == 0) {
-          return(numeric())
-        }
-        rng <- range(x)
-        c(labeling::extended(rng[1], rng[2], n, ...), me_thresh)
-      }
-    })(),
-    labels = (function(x, me_thresh = params[["mendelian_samples"]]) {
-      ifelse(x == me_thresh, paste0("<b style = 'color:firebrick2;'>", percent1(x), "</b>"), percent1(x))
-    })
+    breaks = function(x) unique(c(scales::breaks_extended()(x), params[["mendelian_samples"]])),
+    labels = function(x) ifelse(x == params[["mendelian_samples"]], paste0("<b style='color:firebrick2;'>", percent1(x), "</b>"), percent1(x))
   ) +
   ggplot2::labs(
     x = "Number of Samples", 
@@ -1902,19 +1858,8 @@ p <- ggplot2::ggplot(
     )
   ) +
   ggplot2::scale_y_continuous(
-    breaks = (function(n = 5, cr_thresh = params[["callrate_snps"]], ...) {
-      function(x) {
-        x <- x[is.finite(x)]
-        if (length(x) == 0) {
-          return(numeric())
-        }
-        rng <- range(x)
-        c(labeling::extended(rng[1], rng[2], n, ...), cr_thresh)
-      }
-    })(),
-    labels = (function(x, cr_thresh = params[["callrate_snps"]]) {
-      ifelse(x == cr_thresh, paste0("<b style = 'color:firebrick2;'>", percent1(x), "</b>"), percent1(x))
-    })
+    breaks = function(x) unique(c(scales::breaks_extended()(x), params[["callrate_snps"]])),
+    labels = function(x) ifelse(x == params[["callrate_snps"]], paste0("<b style='color:firebrick2;'>", percent1(x), "</b>"), percent1(x))
   ) +
   ggplot2::labs(
     x = "Number of Variants", 

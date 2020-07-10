@@ -18,18 +18,6 @@
 #'
 #' @return NULL
 #'
-#' @importFrom bookdown html_document2
-#'
-#' @import data.table
-#' @import ggplot2
-#' @import gt
-#' @import patchwork
-#'
-#' @importFrom knitr opts_chunk
-#' @importFrom parallel mclapply detectCores
-#' @importFrom scales comma percent viridis_pal comma_format percent_format
-#' @importFrom sessioninfo session_info
-#'
 #' @export
 qc_vcf <- function(
   input_directory = NULL,
@@ -49,10 +37,17 @@ qc_vcf <- function(
   message(message_prefix, "Quality-Control started ...")
 
   file.copy(
-    from = system.file("rmarkdown", "templates", "qc_impute", "skeleton.Rmd", package = "umr1283"),
+    from = system.file("rmarkdown", "templates", "qc_impute", "skeleton.Rmd", package = "dgapaq"),
     to = file.path(tempdir(), "qc_impute.Rmd"),
     overwrite = TRUE
   )
+
+  if (!all(sapply(
+    X = strsplit(gsub("\\([^()]+\\)|\n| ", "", utils::packageDescription("dgapaq", fields = "Suggests")), ",")[[1]],
+    FUN = function(x) nchar(system.file(package = x)) > 0
+  ))) {
+    stop(message_prefix, "Packages listed in 'Suggests' field are needed to run this function.")
+  }
 
   rmarkdown::render(
     input = file.path(tempdir(), "qc_vcf.Rmd"),
