@@ -36,6 +36,20 @@ output_directory <- params[["output_directory"]]
 dir.create(output_directory, showWarnings = FALSE, recursive = TRUE, mode = "0777")
 
 
+### Load packages ==================================================================================
+suppressPackageStartupMessages({
+  library("bookdown")
+  library("data.table")
+  library("ggplot2")
+  library("gt")
+  library("knitr")
+  library("parallel")
+  library("patchwork")
+  library("scales")
+  library("sessioninfo")
+})
+
+
 ### knitr settings =================================================================================
 knitr::opts_chunk$set(
   results = "asis",
@@ -51,20 +65,6 @@ knitr::opts_chunk$set(
   fig.align = "center",
   fig.pos = "!H"
 )
-
-
-### Load packages ==================================================================================
-suppressPackageStartupMessages({
-  library("bookdown")
-  library("data.table")
-  library("ggplot2")
-  library("gt")
-  library("knitr")
-  library("parallel")
-  library("patchwork")
-  library("scales")
-  library("sessioninfo")
-})
 
 
 ### Define theme ===================================================================================
