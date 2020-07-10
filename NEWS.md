@@ -1,5 +1,12 @@
 # dgapaq (development version)
 
+* In `DESCRTION`,
+    + Use `Suggests` instead of `Imports`.
+* In `R/qc_plink.R`, 
+    + Remove imports.
+* In `R/qc_vcf.R`, 
+    + Remove imports.
+
 # dgapaq 0.4.1
 
 * In [rmarkdown templates](inst/rmarkdown/templates),
