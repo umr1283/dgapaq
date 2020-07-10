@@ -72,23 +72,6 @@ dir.create(file.path(temp, "1kgenome_pruned"), showWarnings = FALSE, recursive =
 plink <- params[["bin_path"]][["plink"]]
 
 
-### knitr settings =================================================================================
-knitr::opts_chunk$set(
-  results = "asis",
-  size = "small",
-  include = TRUE,
-  echo = FALSE,
-  warning = FALSE,
-  message = FALSE,
-  dpi = 120,
-  tidy = FALSE,
-  crop = TRUE,
-  autodep = TRUE,
-  fig.align = "center",
-  fig.pos = "!H"
-)
-
-
 ### Load packages ==================================================================================
 suppressPackageStartupMessages({
   library("bookdown")
@@ -106,6 +89,23 @@ suppressPackageStartupMessages({
   library("sessioninfo")
   library("writexl")
 })
+
+
+### knitr settings =================================================================================
+knitr::opts_chunk$set(
+  results = "asis",
+  size = "small",
+  include = TRUE,
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  dpi = 120,
+  tidy = FALSE,
+  crop = TRUE,
+  autodep = TRUE,
+  fig.align = "center",
+  fig.pos = "!H"
+)
 
 
 ### Define theme ===================================================================================
