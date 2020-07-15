@@ -1,6 +1,6 @@
-# dgapaq (development version)
+# dgapaq 0.5.0
 
-* In `DESCRTION`,
+* In `DESCRIPTION`,
     + Use `Suggests` instead of `Imports`.
 * In `R/qc_plink.R`, 
     + Remove imports.
