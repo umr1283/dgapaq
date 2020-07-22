@@ -598,7 +598,7 @@ ggplot2::ggplot(
   ggplot2::labs(
     x = "Homozygosity Rate",
     y = "Call Rate",
-    title = "Homozygosity Rate Based on X-chromosomal Variants",
+    title = "Homozygosity Rate Based on X-chromosome Variants",
     subtitle = paste(
       "The expected homozygosity rate range:",
       "<b style = 'color:firebrick2;'>for female</b> and", 
@@ -751,7 +751,7 @@ plot_het <- function(data, params) {
       na.rm = TRUE
     ) + 
     ggplot2::scale_colour_viridis_c(begin = 0.2, end = 0.8, trans = "sqrt") +
-    ggplot2::scale_y_continuous(
+    ggplot2::scale_x_continuous(
       breaks = function(x) unique(c(scales::breaks_extended()(x), params[["callrate_samples"]])),
       labels = function(x) ifelse(x == params[["callrate_samples"]], paste0("<b style='color:firebrick2;'>", percent1(x), "</b>"), percent1(x)),
       guide = ggplot2::guide_axis(angle = 45)
@@ -766,7 +766,7 @@ if (is_maf_lower) {
     title = "Heterozygosity Rate",
     tag_levels = "A", 
     subtitle = paste0(
-      "The horizontal red lines (\"<b style = 'color:firebrick2;'>---</b>\") denote the ", params[["heterozygosity_threshold"]], 
+      "The horizontal red lines (\"<b style = 'color:firebrick2;'>---</b>\") denotes the ", params[["heterozygosity_threshold"]], 
       " times the standard deviations (SD) from the mean heterozygosity rate,<br>",
       "based on: <b>A</b>) all variants, <b>B</b>) variants with a MAF < ", params[["maf_threshold"]], "."
     )
@@ -776,7 +776,7 @@ if (is_maf_lower) {
   patchwork::plot_annotation(
     title = "Heterozygosity Rate", 
     subtitle = paste0(
-      "The horizontal red lines (\"<b style = 'color:firebrick2;'>---</b>\") denote the ", params[["heterozygosity_threshold"]], 
+      "The horizontal red lines (\"<b style = 'color:firebrick2;'>---</b>\") denotes the ", params[["heterozygosity_threshold"]], 
       " times the standard deviations (SD) from the mean heterozygosity rate, based on all variants."
     )
   )
