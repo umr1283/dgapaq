@@ -1,3 +1,9 @@
+# dgapaq 0.5.1
+
+* In [rmarkdown templates](inst/rmarkdown/templates),
+    + Fix wrong scale in homozygosity figure.
+    + Fix typos in homozygosity figure.
+
 # dgapaq 0.5.0
 
 * In `DESCRIPTION`,
