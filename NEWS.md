@@ -3,6 +3,7 @@
 * In [rmarkdown templates](inst/rmarkdown/templates),
     + Fix wrong scale in homozygosity figure.
     + Fix typos in homozygosity figure.
+    + Fix exclusion list in Excel.
 
 # dgapaq 0.5.0
 
