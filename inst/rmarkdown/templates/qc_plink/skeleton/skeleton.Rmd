@@ -2255,18 +2255,19 @@ rbind(
 ```{r output-exclusion, include = FALSE}
 output_xlsx <- list()
 
-output_xlsx[["exclude_flag"]] <- merge(
+exclude_flag <- merge(
   x = samples_to_exclude_export,
   y = fam_data[, .(FID, IID, Cohort = cohort, Sex = sex)],
   all.x = TRUE,
   by = c("FID", "IID")
 )
 data.table::setcolorder(
-  x = output_xlsx[["exclude_flag"]], 
-  neworder = c("FID", "IID", "Sex", "Cohort", "Status", setdiff(names(output_xlsx[["exclude_flag"]]), c("FID", "IID", "Sex", "Cohort", "Status")))
+  x = exclude_flag, 
+  neworder = c("FID", "IID", "Sex", "Cohort", "Status", setdiff(names(exclude_flag), c("FID", "IID", "Sex", "Cohort", "Status")))
 )
-cols_order <- setdiff(names(output_xlsx[["exclude_flag"]]), c("FID", "IID", "Sex", "Cohort"))
-output_xlsx[["exclude_flag"]] <- output_xlsx[["exclude_flag"]][order(-cols_order)]
+cols_order <- setdiff(names(exclude_flag), c("FID", "IID", "Sex", "Cohort"))
+setorderv(exclude_flag, cols_order, -1)
+output_xlsx[["exclude_flag"]] <- exclude_flag
 
 if (exists("related_samples") && nrow(related_samples) > 0) {
   output_xlsx[["relatedness"]] <- merge(
