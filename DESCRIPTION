@@ -46,4 +46,5 @@ SystemRequirements:
     gcta64 (>= 1.93.2), 
     perl (>= 5.28.1), 
     plink1.9 (>= 1.90),
-    vcftools (>= 0.1.16)
+    vcftools (>= 0.1.16),
+    CrossMap (>= 0.4.3) - https://crossmap.readthedocs.io/en/latest/
