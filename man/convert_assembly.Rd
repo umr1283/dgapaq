@@ -19,11 +19,13 @@ convert_assembly(
 
 \item{chain_file}{A \code{character}. A path to the chain file.}
 
-\item{input_directory}{A \code{character}. The path to the VCFs.}
+\item{input_directory}{A \code{character}. The path to the VCFs, files should be prefixed by
+chromosome name like: 1, 2, ..., 23 (X), 24 (Y), 25 (M or MT).}
 
 \item{output_directory}{A \code{character}. The path to the output directory.}
 
-\item{bin_path}{A \code{list(character)}. A list giving the binary path of \code{CrossMap}, \code{bcftools}, \code{tabix} and \code{bgzip}}
+\item{bin_path}{A \code{list(character)}. A list giving the binary path of \code{CrossMap}, \code{bcftools},
+\code{tabix} and \code{bgzip}}
 
 \item{nb_cores}{An \code{integer}. The number of CPUs to use.}
 }
