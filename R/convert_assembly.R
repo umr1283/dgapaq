@@ -26,9 +26,9 @@ convert_assembly <- function(
   nb_cores = 1
 ) {
 
-  if (all(utils::file_test("-f", input_directory ))) {
+  if (all(utils::file_test("-f", input_directory))) {
     vcf_files <- input_directory
-  } else if(utils::file_test("-d", input_directory )) {
+  } else if (utils::file_test("-d", input_directory)) {
     vcf_files <- list.files(input_directory , pattern = "(.vcf.gz|.vcf)$", full.names = TRUE)
   } else {
     stop('"input_directory" contains file or directory which does not exist, please check!')
