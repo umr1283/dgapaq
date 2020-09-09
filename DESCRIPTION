@@ -42,6 +42,7 @@ RoxygenNote: 7.1.0
 SystemRequirements: 
     pandoc (>= 1.12.3) - http://pandoc.org, 
     bcftools (>= 1.10.2), 
+    tabix (>= 1.10.2), 
     bgzip (>= 1.10.2), 
     gcta64 (>= 1.93.2), 
     perl (>= 5.28.1), 
