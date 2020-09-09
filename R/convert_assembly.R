@@ -2,15 +2,16 @@
 #'
 #' @param ref_fasta A `character`. A path to the reference fasta file.
 #' @param chain_file A `character`. A path to the chain file.
-#' @param input_directory  A `character`. The path to the VCFs.
+#' @param input_directory  A `character`. The path to the VCFs, files should be prefixed by
+#'     chromosome name like: 1, 2, ..., 23 (X), 24 (Y), 25 (M or MT).
 #' @param output_directory A `character`. The path to the output directory.
-#' @param bin_path A `list(character)`. A list giving the binary path of `CrossMap`, `bcftools`, `tabix` and `bgzip`
+#' @param bin_path A `list(character)`. A list giving the binary path of `CrossMap`, `bcftools`,
+#'     `tabix` and `bgzip`
 #' @param nb_cores An `integer`. The number of CPUs to use.
 #'
 #' @return NULL
-#' @export
 #'
-#' @examples
+#' @export
 convert_assembly <- function(
   ref_fasta,
   chain_file,
@@ -25,17 +26,16 @@ convert_assembly <- function(
   nb_cores = 1
 ) {
 
-  if (all(file_test("-f", input_directory ))) {
+  if (all(utils::file_test("-f", input_directory ))) {
     vcf_files <- input_directory
-  } else if(file_test("-d", input_directory )) {
+  } else if(utils::file_test("-d", input_directory )) {
     vcf_files <- list.files(input_directory , pattern = "(.vcf.gz|.vcf)$", full.names = TRUE)
   } else {
-    stop('"input_directory " contains file or directory which does not exist, please check!')
+    stop('"input_directory" contains file or directory which does not exist, please check!')
   }
 
   if (!dir.exists(output_directory)) {
-    system(paste("sudo mkdir", output_directory))
-    system(paste("sudo chmod g+w -R", output_directory))
+    dir.create(output_directory, showWarnings = FALSE, recursive = TRUE, mode = "0777")
   }
 
   ## convert to target assembly
@@ -88,25 +88,27 @@ convert_assembly <- function(
   }))
 
   list_vcfs_split <- list.files(output_directory, pattern = "from.*vcf.gz$", full.names = TRUE)
-  invisible(parallel::mclapply(list_vcfs, mc.cores = min(length(list_vcfs), nb_cores), function(vcf_i) {
-    chr_i <- gsub("([0-9]+|X|Y|M|MT).*", "\\1", basename(vcf_i))
-    vcf_to_bind <- list_vcfs_split[grep(paste0("^", chr_i, "_from"), basename(list_vcfs_split))]
-    vcf_tmp <- file.path(dirname(vcf_i), paste0("tempo_", basename(vcf_i)))
-    system(paste(
-      bin_path[["bcftools"]],
-      "concat -a", paste(vcf_to_bind, collapse = " "),
-      "-Oz -o", vcf_tmp
-    ))
-    unlink(paste0(vcf_i, ".tbi"))
-    system(paste(
-      bin_path[["bcftools"]],
-      "sort",
-      "-Oz -o", vcf_i,
-      vcf_tmp
-    ))
-    unlink(vcf_tmp)
-    system(paste(bin_path[["tabix"]], "-p vcf", vcf_i))
-  }))
+  invisible(parallel::mclapply(
+    list_vcfs, mc.cores = min(length(list_vcfs), nb_cores), mc.preschedule = FALSE, function(vcf_i) {
+      chr_i <- gsub("([0-9]+|X|Y|M|MT).*", "\\1", basename(vcf_i))
+      vcf_to_bind <- list_vcfs_split[grep(paste0("^", chr_i, "_from"), basename(list_vcfs_split))]
+      vcf_tmp <- file.path(dirname(vcf_i), paste0("tempo_", basename(vcf_i)))
+      system(paste(
+        bin_path[["bcftools"]],
+        "concat -a", paste(vcf_to_bind, collapse = " "),
+        "-Oz -o", vcf_tmp
+      ))
+      unlink(paste0(vcf_i, ".tbi"))
+      system(paste(
+        bin_path[["bcftools"]],
+        "sort",
+        "-Oz -o", vcf_i,
+        vcf_tmp
+      ))
+      unlink(vcf_tmp)
+      system(paste(bin_path[["tabix"]], "-p vcf", vcf_i))
+    }
+  ))
 
   unlink(list.files(output_directory, pattern = "_from_", full.names = TRUE))
 }
