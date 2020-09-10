@@ -98,7 +98,7 @@ convert_assembly <- function(
         "concat -a", paste(vcf_to_bind, collapse = " "),
         "-Oz -o", vcf_tmp
       ))
-      unlink(paste0(vcf_i, ".tbi"))
+      unlink(c(paste0(vcf_i, ".tbi"), vcf_to_bind))
       system(paste(
         bin_path[["bcftools"]],
         "sort",
@@ -110,5 +110,4 @@ convert_assembly <- function(
     }
   ))
 
-  unlink(list.files(output_directory, pattern = "_from_", full.names = TRUE))
 }
