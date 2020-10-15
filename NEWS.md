@@ -1,3 +1,9 @@
+# dgapaq 0.5.2
+
+* In [rmarkdown templates](inst/rmarkdown/templates),
+    + Small refactoring.
+    + Ensure FID and IID are of type character.
+
 # dgapaq 0.5.1
 
 * In [rmarkdown templates](inst/rmarkdown/templates),
