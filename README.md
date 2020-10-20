@@ -30,6 +30,8 @@ remotes::install_github("mcanouil/dgapaq")
   - `qc_vcf()` allows to compute post-imputation quality-control report
     using a default [rmarkdown
     template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd).
+  - `convert_assembly()` allows to convert VCFs to target genome assembly 
+    using the software [CrossMap](https://crossmap.readthedocs.io/en/latest/).
 
 ## Getting help
 
