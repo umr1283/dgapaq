@@ -4,8 +4,7 @@
 #' @param output_directory A `character`. The path to the output directory. Default is `NULL`.
 #' @param ref_fasta A `character`. A path to the reference fasta file. Default is `NULL`.
 #' @param chain_file A `character`. A path to the chain file. Default is `NULL`.
-#' @param bin_path A `list(character)`. A list giving the binary path of
-#'     `CrossMap`, `bcftools`, `tabix` and `bgzip`.
+#' @param bin_path A `list(character)`. A list giving the binary path of `CrossMap`, `bcftools`, `tabix` and `bgzip`.
 #' @param nb_cores An `integer`. The number of CPUs to use.
 #'
 #' @return NULL
@@ -17,7 +16,7 @@ convert_assembly <- function(
   ref_fasta = NULL,
   chain_file = NULL,
   bin_path = list(
-    CrossMap = "/usr/local/bin/CrossMap.py",
+    crossmap = "/usr/local/bin/CrossMap.py",
     bcftools = "/usr/bin/bcftools",
     tabix = "/usr/bin/tabix",
     bgzip = "/usr/bin/bgzip"
@@ -25,7 +24,19 @@ convert_assembly <- function(
   nb_cores = 1
 ) {
 
-  if (length(input_directory) == 1 & length(list.files(input_directory, pattern = "(.vcf.gz|.vcf)$")) <= 1) {
+  names(bin_path) <- tolower(names(bin_path))
+
+  if (
+    length(intersect(names(bin_path), c("crossmap", "bcftools", "tabix", "bgzip"))) != 4 |
+      !all(sapply(bin_path, file.exists))
+  ) {
+    stop('"bin_path" must contains valid named path to "crossmap", "bcftools", "tabix" and "bgzip"!')
+  }
+
+  if (
+    length(input_directory) == 1 &
+      length(list.files(input_directory, pattern = "(.vcf.gz|.vcf)$")) <= 1
+  ) {
     stop('"input_directory" must be a directory of VCF files splitted by chromosome!')
   }
 
@@ -53,67 +64,81 @@ convert_assembly <- function(
     FUN = function(file_i) {
       output_file <- file.path(temp_directory, basename(file_i))
       system(
-        intern = TRUE, wait = TRUE,
-        command = paste(bin_path[["CrossMap"]], "vcf", chain_file, file_i, ref_fasta, output_file)
+        command = paste(bin_path[["crossmap"]], "vcf", chain_file, file_i, ref_fasta, output_file),
+        wait = TRUE
       )
       system(
-        intern = TRUE, wait = TRUE,
-        command = paste(bin_path[["bcftools"]], "sort", "-Oz -o", output_file, output_file)
+        command = paste(bin_path[["bcftools"]], "sort", "-Oz -o", output_file, output_file),
+        wait = TRUE
       )
-      system(intern = TRUE, wait = TRUE, command = paste(bin_path[["tabix"]], "-f -p vcf", output_file))
+      system(
+        command = paste(bin_path[["tabix"]], "-f -p vcf", output_file),
+        wait = TRUE
+      )
     }
   ))
 
   ## resolve changed chromosomes
-  chrs <- c(1:25, "X", "Y", "M", "MT")
-  chrs <- c(chrs, paste0("chr", chrs))
-  list_vcfs <- list.files(output_directory, pattern = "vcf.gz$", full.names = TRUE)
+  chrs <- paste0(rep(c("", "chr"), each = 29), c(1:25, "X", "Y", "M", "MT"))
+  list_vcfs <- list.files(temp_directory, pattern = "vcf.gz$", full.names = TRUE)
   invisible(lapply(list_vcfs, function(vcf_i) {
-    chr_i_orig <- gsub("([0-9]+|X|Y|M|MT).*", "\\1", basename(vcf_i))
-    chr_list <- system(paste(
-      bin_path[["tabix"]],
-      "--list-chroms",
-      vcf_i
-    ), intern = TRUE)
+    chr_i_orig <- gsub(paste0("^(", paste(chrs, collapse = "|"), ").*"), "\\1", basename(vcf_i))
+    chr_list <- system(
+      command = paste(bin_path[["tabix"]], "--list-chroms", vcf_i),
+      intern = TRUE,
+      wait = TRUE
+    )
     chr_list <- intersect(chr_list, chrs)
 
-    parallel::mclapply(chr_list, mc.cores = min(length(chr_list), nb_cores), function(chr_i) {
-      out_name <- file.path(
-        dirname(vcf_i),
-        gsub(chr_i_orig, paste0(chr_i, "_from_", chr_i_orig), basename(vcf_i))
-      )
-      system(paste(
-        bin_path[["bcftools"]],
-        "view",
-        "--regions", chr_i,
-        vcf_i,
-        "-Oz -o", out_name
-      ))
-      system(paste(bin_path[["tabix"]], "-f -p vcf", out_name))
-    })
+    parallel::mclapply(
+      X = chr_list,
+      mc.cores = min(length(chr_list), nb_cores),
+      mc.preschedule = FALSE,
+      FUN = function(chr_i) {
+        output_file <- file.path(
+          temp_directory,
+          gsub(chr_i_orig, paste0(chr_i, "_from_", chr_i_orig), basename(vcf_i))
+        )
+        system(
+          command = paste(bin_path[["bcftools"]], "view", "--regions", chr_i, vcf_i, "-Oz -o", output_file),
+          wait = TRUE
+        )
+        system(
+          command = paste(bin_path[["tabix"]], "-f -p vcf", output_file),
+          wait = TRUE
+        )
+      }
+    )
   }))
 
-  list_vcfs_split <- list.files(output_directory, pattern = "from.*vcf.gz$", full.names = TRUE)
   invisible(parallel::mclapply(
-    list_vcfs, mc.cores = min(length(list_vcfs), nb_cores), mc.preschedule = FALSE, function(vcf_i) {
-      chr_i <- gsub("([0-9]+|X|Y|M|MT).*", "\\1", basename(vcf_i))
-      vcf_to_bind <- list_vcfs_split[grep(paste0("^", chr_i, "_from"), basename(list_vcfs_split))]
-      vcf_tmp <- file.path(dirname(vcf_i), paste0("tempo_", basename(vcf_i)))
-      system(paste(
-        bin_path[["bcftools"]],
-        "concat -a", paste(vcf_to_bind, collapse = " "),
-        "-Oz -o", vcf_tmp
-      ))
-      unlink(c(paste0(vcf_i, ".tbi"), vcf_to_bind))
-      system(paste(
-        bin_path[["bcftools"]],
-        "sort",
-        "-Oz -o", vcf_i,
-        vcf_tmp
-      ))
-      unlink(vcf_tmp)
-      system(paste(bin_path[["tabix"]], "-p vcf", vcf_i))
+    X = list_vcfs,
+    mc.cores = min(length(list_vcfs), nb_cores),
+    mc.preschedule = FALSE,
+    FUN = function(vcf_i) {
+      chr_i <- gsub(paste0("^(", paste(chrs, collapse = "|"), ").*"), "\\1", basename(vcf_i))
+      vcf_to_bind <- paste(
+        list.files(temp_directory, pattern = paste0(chr_i, "_from_.*vcf.gz$"), full.names = TRUE),
+        collapse = " "
+      )
+
+      vcf_tmp <- file.path(temp_directory, paste0("temp_", basename(vcf_i)))
+      vcf_out <- file.path(output_directory, basename(vcf_i))
+
+      system(
+        command = paste(bin_path[["bcftools"]], "concat -a", vcf_to_bind, "-Oz -o", vcf_tmp),
+        wait = TRUE
+      )
+      system(
+        command = paste(bin_path[["bcftools"]], "sort", "-Oz -o", vcf_out, vcf_tmp),
+        wait = TRUE
+      )
+      system(
+        command = paste(bin_path[["tabix"]], "-f -p  vcf", vcf_out),
+        wait = TRUE
+      )
     }
   ))
 
+  invisible(unlink(temp_directory, recursive = TRUE, force = TRUE))
 }
