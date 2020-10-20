@@ -5,27 +5,25 @@
 \title{Convert VCF to different assembly with CrossMap}
 \usage{
 convert_assembly(
-  ref_fasta,
-  chain_file,
-  input_directory,
-  output_directory,
-  bin_path = list(CrossMap = "/usr/local/bin/CrossMap.py", bcftools =
+  input_directory = NULL,
+  output_directory = NULL,
+  ref_fasta = NULL,
+  chain_file = NULL,
+  bin_path = list(crossmap = "/usr/local/bin/CrossMap.py", bcftools =
     "/usr/bin/bcftools", tabix = "/usr/bin/tabix", bgzip = "/usr/bin/bgzip"),
   nb_cores = 1
 )
 }
 \arguments{
-\item{ref_fasta}{A \code{character}. A path to the reference fasta file.}
+\item{input_directory}{A \code{character}. The path to the VCFs files or directory. Default is \code{NULL}.}
 
-\item{chain_file}{A \code{character}. A path to the chain file.}
+\item{output_directory}{A \code{character}. The path to the output directory. Default is \code{NULL}.}
 
-\item{input_directory}{A \code{character}. The path to the VCFs, files should be prefixed by
-chromosome name like: 1, 2, ..., 23 (X), 24 (Y), 25 (M or MT).}
+\item{ref_fasta}{A \code{character}. A path to the reference fasta file. Default is \code{NULL}.}
 
-\item{output_directory}{A \code{character}. The path to the output directory.}
+\item{chain_file}{A \code{character}. A path to the chain file. Default is \code{NULL}.}
 
-\item{bin_path}{A \code{list(character)}. A list giving the binary path of \code{CrossMap}, \code{bcftools},
-\code{tabix} and \code{bgzip}}
+\item{bin_path}{A \code{list(character)}. A list giving the binary path of \code{CrossMap}, \code{bcftools}, \code{tabix} and \code{bgzip}.}
 
 \item{nb_cores}{An \code{integer}. The number of CPUs to use.}
 }
