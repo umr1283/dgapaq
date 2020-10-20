@@ -1,5 +1,11 @@
 # dgapaq (development version)
 
+## New feature
+
+* In `R/convert_assembly.R`, 
+    + `convert_assembly()` allows to convert VCFs to target genome assembly 
+    using the software [CrossMap](https://crossmap.readthedocs.io/en/latest/).
+
 # dgapaq 0.5.2
 
 * In [rmarkdown templates](inst/rmarkdown/templates),
