@@ -1,22 +1,21 @@
 #' Convert VCF to different assembly with CrossMap
 #'
-#' @param ref_fasta A `character`. A path to the reference fasta file.
-#' @param chain_file A `character`. A path to the chain file.
-#' @param input_directory  A `character`. The path to the VCFs, files should be prefixed by
-#'     chromosome name like: 1, 2, ..., 23 (X), 24 (Y), 25 (M or MT).
-#' @param output_directory A `character`. The path to the output directory.
-#' @param bin_path A `list(character)`. A list giving the binary path of `CrossMap`, `bcftools`,
-#'     `tabix` and `bgzip`
+#' @param input_directory  A `character`. The path to the VCFs files or directory. Default is `NULL`.
+#' @param output_directory A `character`. The path to the output directory. Default is `NULL`.
+#' @param ref_fasta A `character`. A path to the reference fasta file. Default is `NULL`.
+#' @param chain_file A `character`. A path to the chain file. Default is `NULL`.
+#' @param bin_path A `list(character)`. A list giving the binary path of
+#'     `CrossMap`, `bcftools`, `tabix` and `bgzip`.
 #' @param nb_cores An `integer`. The number of CPUs to use.
 #'
 #' @return NULL
 #'
 #' @export
 convert_assembly <- function(
-  ref_fasta,
-  chain_file,
-  input_directory ,
-  output_directory,
+  input_directory = NULL,
+  output_directory = NULL,
+  ref_fasta = NULL,
+  chain_file = NULL,
   bin_path = list(
     CrossMap = "/usr/local/bin/CrossMap.py",
     bcftools = "/usr/bin/bcftools",
@@ -26,37 +25,44 @@ convert_assembly <- function(
   nb_cores = 1
 ) {
 
-  if (all(utils::file_test("-f", input_directory))) {
-    vcf_files <- input_directory
-  } else if (utils::file_test("-d", input_directory)) {
-    vcf_files <- list.files(input_directory , pattern = "(.vcf.gz|.vcf)$", full.names = TRUE)
-  } else {
-    stop('"input_directory" contains file or directory which does not exist, please check!')
+  if (length(input_directory) == 1 & length(list.files(input_directory, pattern = "(.vcf.gz|.vcf)$")) <= 1) {
+    stop('"input_directory" must be a directory of VCF files splitted by chromosome!')
   }
 
-  if (!dir.exists(output_directory)) {
-    dir.create(output_directory, showWarnings = FALSE, recursive = TRUE, mode = "0777")
+  if (
+    length(input_directory) > 1 &
+      !all(file.exists(input_directory)) &
+      !all(grepl("(.vcf.gz|.vcf)$", input_directory))
+  ) {
+    stop('"input_directory" must be a vector of VCF files splitted by chromosome!')
   }
+
+  if (length(input_directory) > 1) {
+    vcf_files <- input_directory
+  } else {
+    vcf_files <- list.files(input_directory, pattern = "(.vcf.gz|.vcf)$", full.names = TRUE)
+  }
+
+  temp_directory <- file.path(tempdir(), "convert_assembly")
+  dir.create(path = temp_directory, showWarnings = FALSE)
 
   ## convert to target assembly
-  invisible(parallel::mclapply(vcf_files, mc.cores = min(length(vcf_files), nb_cores), function(file_i) {
-    out_name <- file.path(output_directory, basename(file_i))
-    system(paste(
-      bin_path[["CrossMap"]],
-      "vcf",
-      chain_file,
-      file_i,
-      ref_fasta,
-      out_name
-    ))
-    system(paste(
-      bin_path[["bcftools"]],
-      "sort",
-      "-Oz -o", out_name,
-      out_name
-    ))
-    system(paste(bin_path[["tabix"]], "-f -p vcf", out_name))
-  }))
+  invisible(parallel::mclapply(
+    X = vcf_files,
+    mc.cores = min(length(vcf_files), nb_cores),
+    FUN = function(file_i) {
+      output_file <- file.path(temp_directory, basename(file_i))
+      system(
+        intern = TRUE, wait = TRUE,
+        command = paste(bin_path[["CrossMap"]], "vcf", chain_file, file_i, ref_fasta, output_file)
+      )
+      system(
+        intern = TRUE, wait = TRUE,
+        command = paste(bin_path[["bcftools"]], "sort", "-Oz -o", output_file, output_file)
+      )
+      system(intern = TRUE, wait = TRUE, command = paste(bin_path[["tabix"]], "-f -p vcf", output_file))
+    }
+  ))
 
   ## resolve changed chromosomes
   chrs <- c(1:25, "X", "Y", "M", "MT")
