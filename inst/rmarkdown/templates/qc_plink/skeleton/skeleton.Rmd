@@ -246,12 +246,10 @@ if (length(list.files(dirname(params[["input_files"]]), pattern = ".bed")) != 0)
 Genotyped using `r if (is.null(params[["array"]])) "unspecified" else params[["array"]]` array.
 
 ```{r cohort-overview, include = FALSE}
-fam_data <- data.table::fread(file.path(temp, "data.fam"))
-fam_data[, (1:2) := lapply(.SD, as.character), .SDcols = 1:2]
-data.table::setnames(
-  x = fam_data, 
-  old = sprintf("V%d", 1:ncol(fam_data)), 
-  new = c("FID", "IID", "father_id", "mother_id", "sex", "phenotype")
+fam_data <- data.table::fread(
+  file = file.path(temp, "data.fam"), 
+  col.names = c("FID", "IID", "father_id", "mother_id", "sex", "phenotype"),
+  colClasses = c("character", "character", "character", "character", "numeric", "numeric")
 )
 
 samples_duplicated <- anyDuplicated(gsub("[_-][^-_]*$", "", fam_data[["IID"]]))
@@ -304,7 +302,7 @@ sys(paste(plink,
 callrate_samples <- data.table::fread(
   file = file.path(temp, "data.imiss"), 
   colClasses = c("FID" = "character", "IID" = "character")
-)[, labs := ifelse(F_MISS > 1 - params[["callrate_samples"]], IID, as.character(NA))][order(F_MISS)]
+)[, labs := data.table::fifelse(F_MISS > 1 - params[["callrate_samples"]], IID, NA_character_)][order(F_MISS)]
 samples_to_exclude <- callrate_samples[!is.na(labs), .(FID, IID)]
 samples_to_exclude[, QC := "Sample_Call_Rate"]
 
@@ -334,7 +332,10 @@ sys(paste(plink,
   "--out", file.path(temp, "data_maf_geq")
 ))
 
-callrate_samples_geq <- data.table::fread(file.path(temp, "data_maf_geq.imiss"))[order(F_MISS)]
+callrate_samples_geq <- data.table::fread(
+  file = file.path(temp, "data_maf_geq.imiss"),
+  colClasses = c("FID" = "character", "IID" = "character")
+)[order(F_MISS)]
 prop_all <- sum(callrate_samples[, "F_MISS"] > 1 - params[["callrate_samples"]]) / nrow(callrate_samples)
 prop_maf_geq <- sum(callrate_samples_geq[, "F_MISS"] > 1 - params[["callrate_samples"]]) / nrow(callrate_samples_geq)
 prop_diff_maf_geq <- abs((prop_maf_geq - prop_all) / prop_all) >= 0.05
@@ -353,7 +354,10 @@ if (is_maf_lower) {
     "--extract", file.path(temp, "data_maf_lower.txt"), 
     "--out", file.path(temp, "data_maf_lower")
   ))
-  callrate_samples_lower <- data.table::fread(file.path(temp, "data_maf_lower.imiss"))[order(F_MISS)]
+  callrate_samples_lower <- data.table::fread(
+    file = file.path(temp, "data_maf_lower.imiss"),
+    colClasses = c("FID" = "character", "IID" = "character")
+  )[order(F_MISS)]
   prop_maf_lower <- sum(callrate_samples_lower[, "F_MISS"] > 1 - params[["callrate_samples"]]) / nrow(callrate_samples_lower)
   prop_diff_maf_lower <- abs((prop_maf_lower - prop_all) / prop_all) >= 0.05
 } else {
@@ -507,8 +511,8 @@ sexcheck <- merge(
 )
 sexcheck <- merge(x = sexcheck, y = fam_data, by = c("FID", "IID"), all.x = TRUE)
 sexcheck[, sex_discrepancy := sex != SNPSEX]
-sexcheck[, STATUS := ifelse(sex_discrepancy | is.na(sex_discrepancy) | `F` >= min(params[["sex_threshold"]]) & `F` < max(params[["sex_threshold"]]), "PROBLEM", STATUS)]
-sexcheck[, labs := ifelse(STATUS == "PROBLEM" & F_MISS < 1 - params[["callrate_samples"]], IID, NA)]
+sexcheck[, STATUS := data.table::fifelse(sex_discrepancy | is.na(sex_discrepancy) | `F` >= min(params[["sex_threshold"]]) & `F` < max(params[["sex_threshold"]]), "PROBLEM", STATUS)]
+sexcheck[, labs := data.table::fifelse(STATUS == "PROBLEM" & F_MISS < 1 - params[["callrate_samples"]], IID, NA_character_)]
 
 sexcheck_problem <- sexcheck[STATUS == "PROBLEM"]
 
@@ -647,13 +651,13 @@ heterozygosity <- merge(
 heterozygosity[, hrate := (N.NM. - O.HOM.) / N.NM., by = F_MISS < 1 - params[["callrate_samples"]]]
 heterozygosity[, colour := sqrt( (hrate - mean(hrate, na.rm = TRUE))^2 + (F_MISS - mean(F_MISS, na.rm = TRUE))^2 ), by = F_MISS < 1 - params[["callrate_samples"]]]
 heterozygosity[, 
-  labs := ifelse(
+  labs := data.table::fifelse(
     test = F_MISS < 1 - params[["callrate_samples"]] & ( 
       hrate > mean(hrate, na.rm = TRUE) + stats::sd(hrate * params[["heterozygosity_threshold"]], na.rm = TRUE) | 
         hrate < mean(hrate, na.rm = TRUE) - stats::sd(hrate * params[["heterozygosity_threshold"]], na.rm = TRUE)
     ), 
     yes = IID, 
-    no = as.character(NA)
+    no = NA_character_
   ), 
   by = F_MISS < 1 - params[["callrate_samples"]]
 ]
@@ -687,13 +691,13 @@ if (is_maf_lower) {
     by = F_MISS < 1 - params[["callrate_samples"]]
   ]
   heterozygosity_maf_lower[, 
-    labs := ifelse(
+    labs := data.table::fifelse(
       test = F_MISS < 1 - params[["callrate_samples"]] & ( 
         hrate > mean(hrate, na.rm = TRUE) + stats::sd(hrate * params[["heterozygosity_threshold"]], na.rm = TRUE) | 
           hrate < mean(hrate, na.rm = TRUE) - stats::sd(hrate * params[["heterozygosity_threshold"]], na.rm = TRUE)
       ), 
       yes = IID, 
-      no = as.character(NA)
+      no = NA_character_
     ), 
     by = F_MISS < 1 - params[["callrate_samples"]]
   ]
@@ -974,10 +978,13 @@ if (!imendel_file_check) {
     colClasses = c("FID" = "character", "IID" = "character")
   ) 
   mendel_errors[, percentage := N / snps_number]
-  mendel_errors[, labs := ifelse(percentage > params[["mendelian_samples"]], IID, NA)]
-  mendel_errors[, labs_fam := ifelse(percentage > params[["mendelian_samples"]], FID, NA)]
+  mendel_errors[, labs := data.table::fifelse(percentage > params[["mendelian_samples"]], IID, NA_character_)]
+  mendel_errors[, labs_fam := data.table::fifelse(percentage > params[["mendelian_samples"]], FID, NA_character_)]
   
-  mendel_errors_geq <- data.table::fread(file.path(temp, "data_maf_geq.imendel"))[, percentage := N / snps_number]
+  mendel_errors_geq <- data.table::fread(
+    file = file.path(temp, "data_maf_geq.imendel"),
+    colClasses = c("FID" = "character", "IID" = "character")
+  )[, percentage := N / snps_number]
   prop_maf_geq <- sum(mendel_errors_geq[["percentage"]] > params[["mendelian_samples"]]) / 
     nrow(mendel_errors_geq)
   prop_all <- sum(mendel_errors[["percentage"]] > params[["mendelian_samples"]]) / 
@@ -985,7 +992,10 @@ if (!imendel_file_check) {
   prop_diff_maf_geq <- abs((prop_maf_geq - prop_all) / prop_all) >= 0.05
   
   if (is_maf_lower) {
-    mendel_errors_lower <- data.table::fread(file.path(temp, "data_maf_lower.imendel"))[, percentage := N / snps_number]
+    mendel_errors_lower <- data.table::fread(
+      file = file.path(temp, "data_maf_lower.imendel"),
+     colClasses = c("FID" = "character", "IID" = "character")
+    )[, percentage := N / snps_number]
     prop_maf_lower <- sum(mendel_errors_lower[["percentage"]] > params[["mendelian_samples"]]) /
       nrow(mendel_errors_lower)
     prop_diff_maf_lower <- abs((prop_maf_lower - prop_all) / prop_all) >= 0.05
@@ -1351,21 +1361,36 @@ data.table::setnames(data_1kg_eigenvec, names(data_1kg_eigenvec), c("FID", "IID"
 data_pca <- rbind(
   data.table::fread(
     file = file.path(temp, "data_pop.fam"), 
-    colClasses = c("V2" = "character")
-  )[, POP := params[["cohort_name"]]][, .(IID = V2, POP)],
+    col.names = c("FID", "IID"),
+    select = c(1, 2),
+    colClasses = c("V1" = "character", "V2" = "character")
+  )[, .(FID, IID, POP = params[["cohort_name"]])],
   data.table::fread(
     file = params[["ref1kg_panel"]], 
     fill = TRUE, 
     header = TRUE, 
+    col.names = c("IID", "POP"),
+    select = c(1, 2),
     colClasses = c("sample" = "character")
-  )[, .(IID = sample, POP = pop)]
-)[IID %in% as.character(data.table::fread(file.path(temp, "data_1kgenome.fam"))[["V2"]])]
-data_pca <- merge(x = data_pca, y = data_1kg_eigenvec, by = "IID", all.x = TRUE)[, 
+  )[, .(FID =  IID, IID, POP)]
+)[
+  IID %in% data.table::fread(
+    file = file.path(temp, "data_1kgenome.fam"), 
+    select = 2, 
+    colClasses = "character"
+  )[["V2"]]
+]
+
+data_pca <- merge(x = data_pca, y = data_1kg_eigenvec, by = c("FID", "IID"), all.x = TRUE)[, 
   POP := factor(
     x = POP, 
-    levels = c(params[["cohort_name"]], sort(setdiff(unique(POP), params[["cohort_name"]]), decreasing = TRUE))
+    levels = c(
+      params[["cohort_name"]], 
+      sort(setdiff(unique(POP), params[["cohort_name"]]), decreasing = TRUE)
+    )
   )
-][, .(IID, Population = POP, x = PC1, y = PC2)]
+][, .(FID, IID, Population = POP, x = PC1, y = PC2)]
+
 data_pca <- merge(
   x = data_pca,
   y = data_pca[, lapply(.SD, mean), by = Population, .SDcols = c("x", "y")],
@@ -1379,16 +1404,23 @@ data_pca <- merge(
   by = Population
 ]
 
-centre_pca <- data_pca[Population != params[["cohort_name"]], .SD, .SDcols = c("IID", "Population", grep("centroid", names(data_pca), value = TRUE))][, (c("IID", "Population")) := lapply(.SD, as.character), .SDcols = c("IID", "Population")]
+centre_pca <- data_pca[
+  Population != params[["cohort_name"]], 
+  .SD, 
+  .SDcols = c("FID", "IID", "Population", grep("centroid", names(data_pca), value = TRUE))
+][, 
+  (c("FID", "IID", "Population")) := lapply(.SD, as.character), 
+  .SDcols = c("FID", "IID", "Population")
+]
 
 check_ethnicity <- merge(
   x = data.table::fread(
     file = file.path(temp, "data_pop.fam"), 
     col.names = c("FID", "IID"), 
-    select = c(V1 = "character", V2 = "character")
+    select = c("V1" = "character", "V2" = "character")
   ),
   y = data_pca[Population == params[["cohort_name"]]],
-  by = "IID",
+  by = c("FID", "IID"),
   all.x = TRUE
 )
 
@@ -1424,17 +1456,37 @@ A principal component analysis (PCA) was performed on the merged dataset (*i.e.*
 ```{r ancestry-inference-fig}
 data_pca_plot <- merge(
   x = data_pca,
-  y = merge(x = check_ethnicity[, .(IID, closest_pop)], y = fam_data[, .(IID, cohort)], all.x = TRUE, by = "IID"),
-  all.x = TRUE,
-  by = "IID"
-)[, Population := as.character(Population)]
-data_pca_plot[, cohort := ifelse(is.na(cohort), "1,000 Genomes", cohort)]
-data_pca_plot[, closest_pop := ifelse(is.na(closest_pop), Population, closest_pop)]
-data_pca_plot[, Population := ifelse(Population %in% params[["cohort_name"]], cohort, Population)]
-data_pca_plot <- merge(x = data_pca_plot, y = pop1kg_description, all = TRUE, by.x = "Population", by.y = "POP")
-data_pca_plot[, SUPER_POP := ifelse(is.na(SUPER_POP), Population, SUPER_POP)]
-data_pca_plot[, SUPER_POP_NAME := ifelse(is.na(SUPER_POP_NAME), Population, SUPER_POP_NAME)]
-data_pca_plot <- data_pca_plot[!is.na(cohort), ]
+  y = merge(
+    x = check_ethnicity[, .(FID, IID, closest_pop)], 
+    y = fam_data[, .(FID, IID, cohort)], 
+    all = TRUE, 
+    by = c("FID", "IID")
+  ),
+  all = TRUE,
+  by = c("FID", "IID")
+)[, 
+  Population := as.character(Population)
+][, 
+  cohort := data.table::fifelse(is.na(cohort), "1,000 Genomes", cohort)
+][, 
+  closest_pop := data.table::fifelse(is.na(closest_pop), Population, closest_pop)
+][,
+  Population := data.table::fifelse(Population %in% params[["cohort_name"]], cohort, Population)
+]
+
+data_pca_plot <- merge(
+  x = data_pca_plot, 
+  y = pop1kg_description, 
+  all = TRUE,
+  by.x = "Population", 
+  by.y = "POP"
+)[,
+  SUPER_POP := data.table::fifelse(is.na(SUPER_POP), Population, SUPER_POP)
+][,
+  SUPER_POP_NAME := data.table::fifelse(is.na(SUPER_POP_NAME), Population, SUPER_POP_NAME)
+][
+  !is.na(cohort)
+]
 
 p_superpop <- ggplot2::ggplot(
   data = data_pca_plot[order(cohort)], 
@@ -1571,7 +1623,7 @@ pop_name <- pop1kg_description[SUPER_POP %in% params[["population"]], unique(SUP
 
 cat(
   "In total, ", comma(nrow(not_target_population)), " sample",
-  ifelse(nrow(not_target_population) > 1, "s were", " was"),
+  data.table::fifelse(nrow(not_target_population) > 1, "s were", " was"),
   " determined as non-", pop_name, " based on PCA.\n", 
   sep = ""
 )
@@ -1625,9 +1677,13 @@ sys(paste(params[["bin_path"]][["gcta"]],
 
 eigenvec_pca <- data.table::fread(
   file = file.path(temp, "data_pop_within.eigenvec"), 
-  colClasses = c(V1 = "character", V2 = "character")
+  colClasses = c("V1" = "character", "V2" = "character")
 )
-data.table::setnames(eigenvec_pca, names(eigenvec_pca), c("FID", "IID", paste0("PC", seq_len(params[["pca_components"]]))))
+data.table::setnames(
+  x = eigenvec_pca, 
+  old = names(eigenvec_pca), 
+  new = c("FID", "IID", paste0("PC", seq_len(params[["pca_components"]])))
+)
 eigenvec_pca[,
   is_outlier := abs(PC1) > mean(PC1) + params[["pca_threshold"]] * stats::sd(PC1) | 
     abs(PC2) > mean(PC2) + params[["pca_threshold"]] * stats::sd(PC2) | 
@@ -1636,9 +1692,9 @@ eigenvec_pca[,
 
 fam_data_pca <- merge(
   x = eigenvec_pca[, POP := params[["cohort_name"]]],
-  y = fam_data[, .(IID, cohort)],
+  y = fam_data[, .(FID, IID, cohort)],
   all.x = TRUE,
-  by = "IID"
+  by = c("FID", "IID")
 )
 ```
 
@@ -1690,7 +1746,15 @@ p_within <- lapply(list(c("PC1", "PC2"), c("PC1", "PC3"), c("PC2", "PC3")), func
 })
 
 p_within[[length(p_within) + 1]] <- ggplot2::ggplot(
-  data = data.table::fread(file.path(temp, "data_pop_within.eigenval"))[, y := V1 / sum(V1)][1:params[["pca_components"]]][, x := 1:.N],
+  data = data.table::fread(
+    file = file.path(temp, "data_pop_within.eigenval")
+  )[, 
+    y := V1 / sum(V1)
+  ][
+    1:params[["pca_components"]]
+  ][, 
+    x := 1:.N
+  ],
   mapping = ggplot2::aes(x = x, y = y)
 ) +
   ggplot2::geom_col(fill = scales::viridis_pal(begin = 0.5, end = 0.5)(1)) +
@@ -1766,7 +1830,7 @@ samples_to_exclude[, value := 1]
 samples_to_exclude_export <- data.table::dcast(samples_to_exclude, FID + IID ~ QC, value.var = "value", fill = 0)
 if (!"Sample_Call_Rate" %in% names(samples_to_exclude_export)) samples_to_exclude_export[, Sample_Call_Rate := 0]
 if (!"Heterozygosity_Check" %in% names(samples_to_exclude_export)) samples_to_exclude_export[, Heterozygosity_Check := 0]
-samples_to_exclude_export[, Status := ifelse((Sample_Call_Rate + Heterozygosity_Check) > 0, "Exclude", "Check")]
+samples_to_exclude_export[, Status := data.table::fifelse((Sample_Call_Rate + Heterozygosity_Check) > 0, "Exclude", "Check")]
 name_cols <- c(
   "FID", "IID", "Status",
   "Call Rate", "Sex Discrepancy", "Sex Missing", "Sex Other", 
@@ -1827,7 +1891,7 @@ snps_low_call_rate <- callrate_snps_raw[, sum((1 - F_MISS) < params[["callrate_s
 In total, **`r comma(snps_low_call_rate)`** variants had a call rate below `r percent2(params[["callrate_snps"]])` and were excluded.  
 
 ```{r variant-call-rate-fig}
-snps_call_rate <- callrate_snps_raw[, F_MISS := ifelse(is.na(F_MISS), 1, F_MISS)][F_MISS >= 0.001][order(1 - F_MISS)]
+snps_call_rate <- callrate_snps_raw[, F_MISS := data.table::fifelse(is.na(F_MISS), 1, F_MISS)][F_MISS >= 0.001][order(1 - F_MISS)]
 p <- ggplot2::ggplot(
   data = snps_call_rate,
   mapping = ggplot2::aes(x = seq_along(F_MISS), y = 1 - F_MISS)
@@ -1859,7 +1923,7 @@ p <- ggplot2::ggplot(
   ) +
   ggplot2::scale_y_continuous(
     breaks = function(x) unique(c(scales::breaks_extended()(x), params[["callrate_snps"]])),
-    labels = function(x) ifelse(x == params[["callrate_snps"]], paste0("<b style='color:firebrick2;'>", percent1(x), "</b>"), percent1(x))
+    labels = function(x) data.table::fifelse(x == params[["callrate_snps"]], paste0("<b style='color:firebrick2;'>", percent1(x), "</b>"), percent1(x))
   ) +
   ggplot2::labs(
     x = "Number of Variants", 
