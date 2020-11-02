@@ -653,8 +653,8 @@ heterozygosity[, colour := sqrt( (hrate - mean(hrate, na.rm = TRUE))^2 + (F_MISS
 heterozygosity[, 
   labs := data.table::fifelse(
     test = F_MISS < 1 - params[["callrate_samples"]] & ( 
-      hrate > mean(hrate, na.rm = TRUE) + stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_threshold"]] | 
-        hrate < mean(hrate, na.rm = TRUE) - stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_threshold"]]
+      hrate > mean(hrate, na.rm = TRUE) + params[["heterozygosity_threshold"]] * stats::sd(hrate, na.rm = TRUE) | 
+        hrate < mean(hrate, na.rm = TRUE) - params[["heterozygosity_threshold"]] * stats::sd(hrate, na.rm = TRUE)
     ), 
     yes = IID, 
     no = NA_character_
@@ -693,8 +693,8 @@ if (is_maf_lower) {
   heterozygosity_maf_lower[, 
     labs := data.table::fifelse(
       test = F_MISS < 1 - params[["callrate_samples"]] & ( 
-        hrate > mean(hrate, na.rm = TRUE) + stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_threshold"]] | 
-          hrate < mean(hrate, na.rm = TRUE) - stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_threshold"]]
+        hrate > mean(hrate, na.rm = TRUE) + params[["heterozygosity_threshold"]] * stats::sd(hrate, na.rm = TRUE) | 
+          hrate < mean(hrate, na.rm = TRUE) - params[["heterozygosity_threshold"]] * stats::sd(hrate, na.rm = TRUE)
       ), 
       yes = IID, 
       no = NA_character_
@@ -726,8 +726,9 @@ plot_het <- function(data, params) {
     ggplot2::geom_hline(
       data = ~ .x[
         F_MISS < 1 - params[["callrate_samples"]], 
-        .(yintercept = mean(hrate, na.rm = TRUE) - 
-          stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_threshold"]])
+        .(
+          yintercept = mean(hrate, na.rm = TRUE) - params[["heterozygosity_threshold"]] * stats::sd(hrate, na.rm = TRUE)
+        )
       ],
       mapping = ggplot2::aes(yintercept = yintercept),
       colour = "firebrick2", 
@@ -736,8 +737,9 @@ plot_het <- function(data, params) {
     ggplot2::geom_hline(
       data = ~ .x[
         F_MISS < 1 - params[["callrate_samples"]], 
-        .(yintercept = mean(hrate, na.rm = TRUE) +
-          stats::sd(hrate, na.rm = TRUE) * params[["heterozygosity_threshold"]])
+        .(
+          yintercept = mean(hrate, na.rm = TRUE) + params[["heterozygosity_threshold"]] * stats::sd(hrate, na.rm = TRUE)
+        )
       ],
       mapping = ggplot2::aes(yintercept = yintercept),
       colour = "firebrick2", 
