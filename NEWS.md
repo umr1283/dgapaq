@@ -1,5 +1,10 @@
 # dgapaq (development version)
 
+## Minor improvements and fixes
+
+* In [rmarkdown templates](inst/rmarkdown/templates),
+    + Fix wrong formula for heterozygosity outliers.
+
 # dgapaq 0.6.0
 
 ## New feature
