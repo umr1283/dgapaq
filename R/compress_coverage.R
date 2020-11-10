@@ -1,18 +1,23 @@
 #' compress_coverage
 #'
-#' Compresses coverage file into contiguous segments based on position,
-#' this function works with whole genome or any specified chromosomes.
-#' Attention, currently, the only supported raw coverage formats are .cov, .cov.gz or .cov.bz2.
+#' Compresses coverage file (output of `samtools depth`) into contiguous segments based on position.
+#' This function works with whole genome or any specified chromosomes.
+#' Each sample is supposed to have one coverage file.
+#' The coverage file should not have header and contain 3 mandatory columns for chromosome, position and depth.
+#' Attention, currently only supports coverage file in raw text or .gz/.bz2 compressed format.
 #'
 #' @importFrom parallel mclapply
 #' @importFrom data.table fread
 #' @importFrom data.table fwrite
-#' @param sample_sheet A `data.frame`. A data frame containing sample `id` and the full path to .cov files `cov_file`.
+#'
+#' @param sample_sheet A `data.frame`. A data frame containing samples `id` and
+#' the full path to coverage files `cov_file`.
+#' Note: coverage file should containing 3 columns: chr pos coverage
 #' @param output_directory A `character`. The path to the output directory.
-#' @param chromosome A vector of `character`. Chromosome names to filter
-#'  (same nomenclature as chromosome name in coverage file),
-#' by default filter on all chromosomes present in coverage file.
-#' @param min_depth A `numeric`. The minimum depth to filter. Default is `8`.
+#' @param chromosome A vector of `character`. Chromosomes to filter
+#'  (same nomenclature as chromosome name in coverage file).
+#' By default use all chromosomes present in the coverage file.
+#' @param min_depth An `integer`. The minimum depth to filter. Default is `8`.
 #' @param nb_cores An `integer`. The number of CPUs to use. Default is `1`.
 #'
 #' @return NULL
@@ -30,11 +35,11 @@ compress_coverage <- function(
   }
 
   if (missing(output_directory)) {
-    stop("The output_directory must be specified (path to store the compressed cov files).")
+    stop("The output_directory must be specified.")
   }
 
   if (! dir.exists(output_directory)) {
-    dir.create(path = normalizePath(output_directory), showWarnings = FALSE, recursive = TRUE)
+    dir.create(path = output_directory, showWarnings = FALSE, recursive = TRUE)
   }
 
   if (missing(chromosome)) {
@@ -54,21 +59,21 @@ compress_coverage <- function(
       filter_script <- file.path(output_directory, paste0("filter-script_", iid))
       compressed_file <- file.path(output_directory, paste0(iid, ".cov.compress"))
       cov_file <- sample_sheet$cov_file[which(sample_sheet$id %in% iid)]
-      isgz_cov <- grepl("\\.cov\\.gz$", cov_file)
-      isbz2_cov <- grepl("\\.cov\\.bz2$", cov_file)
-      isjust_cov <- grepl("\\.cov$", cov_file)
 
       cat(paste0("Analyzing sample ", iid, ":"), file = log_file, sep = "\n")
 
-      if(! any(isjust_cov, isgz_cov, isbz2_cov)) {
+      if(! file.exists(cov_file)) {
         cat(
-          "The coverage file is neither '.cov' nor '.cov.gz' nor '.cov.bz2', sample skipped!\n",
+          "The coverage file does not exist, sample skipped!\n",
           file = log_file,
           append = TRUE,
           sep = "\n"
         )
         return(invisible())
       }
+
+      isgz_cov <- grepl("\\.gz$", cov_file)
+      isbz2_cov <- grepl("\\.bz2$", cov_file)
 
       cat(
         paste0("Filtering position where coverage is lower than ", min_depth, "X..."),
@@ -78,7 +83,7 @@ compress_coverage <- function(
       )
 
       filtering_time <- system.time({
-        ## 1/ decompress if needed and build filtering cmd
+        ## decompress if needed and build filtering command
         cat(paste0(
           "#!/bin/bash\n",
           ifelse(
@@ -97,7 +102,7 @@ compress_coverage <- function(
           )
         ), file = filter_script)
 
-        ## 2/ exe cmd
+        ## execute command
         system(
           paste0("bash ", filter_script, " && rm ", filter_script),
           intern = FALSE, ignore.stdout = TRUE, ignore.stderr = TRUE, wait = TRUE
@@ -146,8 +151,8 @@ compress_coverage <- function(
 
           cbind(
             as.numeric(ref_chr[gsub("chr", "", jchr, ignore.case = TRUE)]),
-            sapply(tmp, `[[`, 1),
-            sapply(tmp, tail, 1)
+            sapply(tmp, `[[`, 1L),
+            sapply(tmp, tail, 1L)
           )
         }))
         colnames(res) <- c("chr", "start", "end")
@@ -157,7 +162,7 @@ compress_coverage <- function(
         ))
 
         cat(
-          paste0("Result \"", iid, ".cov.compress\" is stocked in: ", output_directory),
+          paste0("Result \"", iid, ".cov.compress\" is stored in: ", output_directory),
           file = log_file, append = TRUE, sep = "\n"
         )
       })
