@@ -3,3 +3,6 @@
 export(convert_assembly)
 export(qc_plink)
 export(qc_vcf)
+importFrom(data.table,fread)
+importFrom(data.table,fwrite)
+importFrom(parallel,mclapply)
