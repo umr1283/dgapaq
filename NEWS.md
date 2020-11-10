@@ -1,3 +1,10 @@
+# dgapaq 0.7.0
+
+## New feature
+
+* In `R/compress_coverage.R`, 
+    + `compress_coverage()` allows to compress coverage file (output of `samtools depth`) into contiguous segments based on position.
+
 # dgapaq 0.6.1
 
 ## Minor improvements and fixes
