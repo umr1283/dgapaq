@@ -146,11 +146,9 @@ compress_coverage <- function(
             x = sub_file[[ncol(sub_file) - 1]],
             f = cumsum(c(1, diff(sub_file[[ncol(sub_file) - 1]]) != 1))
           )
-          ref_chr <- c(1:26, 23:26)
-          names(ref_chr) <- c(1:26, "X", "Y", "M", "MT")
 
           cbind(
-            as.numeric(ref_chr[gsub("chr", "", jchr, ignore.case = TRUE)]),
+            jchr,
             sapply(tmp, `[[`, 1L),
             sapply(tmp, tail, 1L)
           )
