@@ -129,7 +129,7 @@ compress_coverage <- function(
           return(invisible())
         }
 
-        cov_file_filtered <- data.table::fread(filtered_file, header = FALSE)
+        cov_file_filtered <- data.table::fread(filtered_file, header = FALSE, nThread = nb_cores)
         invisible(file.remove(filtered_file))
 
         cat(
@@ -156,7 +156,8 @@ compress_coverage <- function(
         colnames(res) <- c("chr", "start", "end")
 
         invisible(data.table::fwrite(
-          res, file = compressed_file, sep = "\t", row.names = FALSE, col.names = TRUE, quote = FALSE
+          res, file = compressed_file, sep = "\t", nThread = nb_cores,
+          row.names = FALSE, col.names = TRUE, quote = FALSE
         ))
 
         cat(
