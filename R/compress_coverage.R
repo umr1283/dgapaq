@@ -3,25 +3,28 @@
 #' Compresses coverage file (output of `samtools depth`) into contiguous segments based on position.
 #' This function works with whole genome or any specified chromosomes.
 #' Each sample is supposed to have one coverage file.
-#' The coverage file should not have header and contain 3 mandatory columns for chromosome, position and depth.
+#' The coverage file should not have header and contain 3 mandatory columns for chromosome, position
+#' and depth, with no header.
+#' Please note this function is designed for Linux environment, `awk` and `gzip` (or `bzip2`) are
+#' required to process data.
 #' Attention, currently only supports coverage file in raw text or .gz/.bz2 compressed format.
+#'
+#' @param sample_sheet A `data.frame`. A data frame containing samples `id` and
+#' the full path to coverage files `cov_file`.
+#' @param output_directory A `character`. The path to the output directory.
+#' @param chromosome A vector of `character`. Chromosomes to keep
+#'  (same nomenclature as chromosome name in coverage file).
+#' By default use all chromosomes present in the coverage file.
+#' @param min_depth An `integer`. The minimum depth to keep. Default is `8`.
+#' @param nb_cores An `integer`. The number of CPUs to use. Default is `1`.
+#'
+#' @return NULL
 #'
 #' @importFrom parallel mclapply
 #' @importFrom data.table fread
 #' @importFrom data.table fwrite
 #'
-#' @param sample_sheet A `data.frame`. A data frame containing samples `id` and
-#' the full path to coverage files `cov_file`.
-#' Note: coverage file should containing 3 columns: chr pos coverage
-#' @param output_directory A `character`. The path to the output directory.
-#' @param chromosome A vector of `character`. Chromosomes to filter
-#'  (same nomenclature as chromosome name in coverage file).
-#' By default use all chromosomes present in the coverage file.
-#' @param min_depth An `integer`. The minimum depth to filter. Default is `8`.
-#' @param nb_cores An `integer`. The number of CPUs to use. Default is `1`.
-#'
-#' @return NULL
-
+#' @export
 compress_coverage <- function(
   sample_sheet,
   output_directory,
@@ -129,6 +132,7 @@ compress_coverage <- function(
           return(invisible())
         }
 
+        V1 <- NULL
         cov_file_filtered <- data.table::fread(filtered_file, header = FALSE, nThread = nb_cores)
         invisible(file.remove(filtered_file))
 
@@ -150,7 +154,7 @@ compress_coverage <- function(
           cbind(
             jchr,
             sapply(tmp, `[[`, 1L),
-            sapply(tmp, tail, 1L)
+            sapply(tmp, utils::tail, 1L)
           )
         }))
         colnames(res) <- c("chr", "start", "end")

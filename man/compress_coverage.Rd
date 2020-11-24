@@ -14,16 +14,15 @@ compress_coverage(
 }
 \arguments{
 \item{sample_sheet}{A \code{data.frame}. A data frame containing samples \code{id} and
-the full path to coverage files \code{cov_file}.
-Note: coverage file should containing 3 columns: chr pos coverage}
+the full path to coverage files \code{cov_file}.}
 
 \item{output_directory}{A \code{character}. The path to the output directory.}
 
-\item{chromosome}{A vector of \code{character}. Chromosomes to filter
+\item{chromosome}{A vector of \code{character}. Chromosomes to keep
 (same nomenclature as chromosome name in coverage file).
 By default use all chromosomes present in the coverage file.}
 
-\item{min_depth}{An \code{integer}. The minimum depth to filter. Default is \code{8}.}
+\item{min_depth}{An \code{integer}. The minimum depth to keep. Default is \code{8}.}
 
 \item{nb_cores}{An \code{integer}. The number of CPUs to use. Default is \code{1}.}
 }
@@ -31,6 +30,9 @@ By default use all chromosomes present in the coverage file.}
 Compresses coverage file (output of \verb{samtools depth}) into contiguous segments based on position.
 This function works with whole genome or any specified chromosomes.
 Each sample is supposed to have one coverage file.
-The coverage file should not have header and contain 3 mandatory columns for chromosome, position and depth.
+The coverage file should not have header and contain 3 mandatory columns for chromosome, position
+and depth, with no header.
+Please note this function is designed for Linux environment, \code{awk} and \code{gzip} (or \code{bzip2}) are
+required to process data.
 Attention, currently only supports coverage file in raw text or .gz/.bz2 compressed format.
 }
