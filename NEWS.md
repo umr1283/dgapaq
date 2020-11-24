@@ -4,6 +4,9 @@
 
 * In `R/compress_coverage.R`, 
     + `compress_coverage()` allows to compress coverage file (output of `samtools depth`) into contiguous segments based on position.
+* In `R/check_genotype.R`, 
+    + `create_genotype_matrix()` allows to create a genotype matrix based on VCFs.
+    + `check_genotype()` allows to check missing data in genotype matrix against coverage information.
 
 # dgapaq 0.6.1
 
