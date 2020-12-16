@@ -12,23 +12,26 @@
 #' @param sample_sheet A `data.frame`. A data frame containing samples `id` and
 #' the full path to coverage files `cov_file`.
 #' @param output_directory A `character`. The path to the output directory.
-#' @param chromosome A vector of `character`. Chromosomes to keep
-#'  (same nomenclature as chromosome name in coverage file).
-#' By default use all chromosomes present in the coverage file.
+#' @param chromosomes A vector of `character`. Chromosomes to keep.
+#' (same nomenclature as chromosome name in coverage file).
+#' If argument not specified (default is `NULL`), this filter will be turned off.
 #' @param min_depth An `integer`. The minimum depth to keep. Default is `8`.
 #' @param nb_cores An `integer`. The number of CPUs to use. Default is `1`.
 #'
 #' @return NULL
 #'
+#' @importFrom utils tail
 #' @importFrom parallel mclapply
 #' @importFrom data.table fread
+#' @importFrom data.table data.table
+#' @importFrom data.table rbindlist
 #' @importFrom data.table fwrite
 #'
 #' @export
 compress_coverage <- function(
   sample_sheet,
-  output_directory,
-  chromosome,
+  output_directory = NULL,
+  chromosomes = NULL,
   min_depth = 8,
   nb_cores = 1
 ) {
@@ -37,20 +40,17 @@ compress_coverage <- function(
     stop("Either 'id' or 'cov_file' is missing in the sample_sheet.")
   }
 
-  if (missing(output_directory)) {
+  if (is.null(output_directory)) {
     stop("The output_directory must be specified.")
   }
+  dir.create(path = output_directory, showWarnings = FALSE, recursive = TRUE)
 
-  if (! dir.exists(output_directory)) {
-    dir.create(path = output_directory, showWarnings = FALSE, recursive = TRUE)
-  }
-
-  if (missing(chromosome)) {
+  if (is.null(chromosomes)) {
     filter_cond <- paste0("{if ($var >= ", min_depth, "){print}}")
   } else {
     filter_cond <- paste0(
       "{if ((",
-      paste0(paste0("$1 == ", shQuote(chromosome, type = "cmd")), collapse = " || "),
+      paste0(paste0("$1 == ", shQuote(chromosomes, type = "cmd")), collapse = " || "),
       ") && $var >= ", min_depth, "){print}}"
     )
   }
@@ -60,7 +60,6 @@ compress_coverage <- function(
       log_file <- file.path(output_directory, paste0(iid, ".log"))
       filtered_file <- file.path(output_directory, paste0(iid, ".cov.filtered"))
       filter_script <- file.path(output_directory, paste0("filter-script_", iid))
-      compressed_file <- file.path(output_directory, paste0(iid, ".cov.compress"))
       cov_file <- sample_sheet$cov_file[which(sample_sheet$id %in% iid)]
 
       cat(paste0("Analyzing sample ", iid, ":"), file = log_file, sep = "\n")
@@ -117,6 +116,14 @@ compress_coverage <- function(
         append = TRUE,
         sep = "\n"
       )
+    })
+  )
+
+  invisible(
+    lapply(sample_sheet$id, function(iid) {
+      log_file <- file.path(output_directory, paste0(iid, ".log"))
+      filtered_file <- file.path(output_directory, paste0(iid, ".cov.filtered"))
+      compressed_file <- file.path(output_directory, paste0(iid, ".cov.compress"))
 
       compressing_time <- system.time({
         cat(paste0("Reading ", iid, ".cov.filtered..."), file = log_file, append = TRUE, sep = "\n")
@@ -142,22 +149,21 @@ compress_coverage <- function(
           append = TRUE,
           sep = "\n"
         )
-        res <- do.call("rbind", lapply(unique(cov_file_filtered[["V1"]]), function(jchr) {
+        res <- data.table::rbindlist(lapply(unique(cov_file_filtered[["V1"]]), function(jchr) {
           cat(paste0("in chromosome ", jchr), file = log_file, append = TRUE, sep = "\n")
 
-          sub_file <- cov_file_filtered[V1 %in% jchr, ]
+          sub_file <- cov_file_filtered[V1 %in% jchr]
           tmp <- split(
             x = sub_file[[ncol(sub_file) - 1]],
             f = cumsum(c(1, diff(sub_file[[ncol(sub_file) - 1]]) != 1))
           )
 
-          cbind(
-            jchr,
-            sapply(tmp, `[[`, 1L),
-            sapply(tmp, utils::tail, 1L)
+          data.table::data.table(
+            "chr" = jchr,
+            "start" = sapply(tmp, `[[`, 1L),
+            "end" = sapply(tmp, utils::tail, 1L)
           )
         }))
-        colnames(res) <- c("chr", "start", "end")
 
         invisible(data.table::fwrite(
           res, file = compressed_file, sep = "\t", nThread = nb_cores,
@@ -169,6 +175,7 @@ compress_coverage <- function(
           file = log_file, append = TRUE, sep = "\n"
         )
       })
+
       cat(
         paste("Compressing time:", round(compressing_time[["elapsed"]]/60, 2), "minutes"),
         file = log_file,
