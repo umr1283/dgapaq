@@ -5,7 +5,10 @@
 #' @param sample_sheet A `data.frame`. A data frame with two mandatory columns `id` and `vcf_file`.
 #' @param output_name A `character`. The prefix for output genotype data. Default is "raw_merged"
 #' @param output_directory A `character`. The path to the output directory. Default is `NULL`.
-#' @param remove_homozygous_mutation A `logical`. Does the homozygous mutation (i.e.: genotype composed
+#' @param chromosomes A vector of `character`. Chromosomes to keep
+#'  (same nomenclature as chromosome name in VCF).
+#' If argument not specified (as default `NULL`), this filter will be turned off.
+#' @param remove_multiallelic A `logical`. Does the multi-allelic variants (i.e.: genotype composed
 #' of different alternative alleles) should be removed. Default is `TRUE`.
 #' @param split_multiallelic A `logical`. Does the multi-allelic variants should be splitted into
 #' bi-allelic variants. Default is `FALSE`.
@@ -32,15 +35,15 @@ create_genotype_matrix <- function(
   sample_sheet,
   output_name = "raw_merged",
   output_directory = NULL,
-  remove_homozygous_mutation = TRUE,
+  chromosomes = NULL,
+  remove_multiallelic = TRUE,
   split_multiallelic = FALSE,
   split_type = "both",
   ref_fasta = NULL,
   bin_path = list(
     vcftools = "/usr/bin/vcftools",
     bcftools = "/usr/bin/bcftools",
-    tabix = "/usr/bin/tabix",
-    bgzip = "/usr/bin/bgzip"
+    tabix = "/usr/bin/tabix"
   ),
   nb_cores = 1L
 ) {
@@ -49,8 +52,12 @@ create_genotype_matrix <- function(
     stop("Either 'id' or 'vcf_file' is missing in the sample_sheet.")
   }
 
-  if (all(remove_homozygous_mutation, split_multiallelic)) {
-    stop("'remove_homozygous_mutation' and 'split_multiallelic' can't be both TRUE!")
+  if (is.null(output_directory)) {
+    stop("The output_directory must be specified.")
+  }
+
+  if (all(remove_multiallelic, split_multiallelic)) {
+    stop("'remove_multiallelic' and 'split_multiallelic' can't be both TRUE!")
   }
 
   if (split_multiallelic & ! split_type %in% c("both", "snps", "indels", "any")) {
@@ -71,27 +78,30 @@ create_genotype_matrix <- function(
     parallel::mclapply(X = sample_sheet$id, mc.cores = nb_cores, function(iid){
       ivcf <- sample_sheet$vcf_file[sample_sheet$id %in% iid]
       iout <- file.path(output_tmp_dir, paste0(iid, "_tmp.vcf.gz"))
+      is_gzvcf <- grepl("vcf\\.gz$", ivcf)
 
-      if (remove_homozygous_mutation) {
+      if (remove_multiallelic) {
         ## remove variants with double mutated alleles, i.e.: geno 1/2
         system(paste(
           bin_path[["vcftools"]],
-          "--vcf", ivcf,
+          paste0("--", if (is_gzvcf) "gvcf" else "vcf"), ivcf,
           "--min-alleles 2 --max-alleles 2 --recode --stdout |",
-          bin_path[["bgzip"]], " -c > ", iout
+          bin_path[["bcftools"]], "sort --output-type z --output-file", iout
         ))
       } else if (split_multiallelic) {
         ## split multiallelic variants, e.g.: ref:A, alt:T,G, geno:1/2 => A/T (0/1) and A/G (0/1)
         system(paste(
           bin_path[["bcftools"]],
           "norm",
-          ifelse(is.null(ref_fasta), "", paste("--fasta-ref", ref_fasta)),
-          "-m", paste0("-", split_type), ivcf, " | ",
-          bin_path[["bgzip"]], " -c > ", iout
+          if (is.null(ref_fasta)) "" else paste("--fasta-ref", ref_fasta),
+          "-m", paste0("-", split_type), ivcf, "|",
+          bin_path[["bcftools"]], "sort --output-type z --output-file", iout
         ))
       } else {
-        if (!grepl("gz$", ivcf)) {
-          system(paste(bin_path[["bgzip"]], "-c <", ivcf, ">", iout))
+        if (!is_gzvcf) {
+          system(paste(
+            bin_path[["bcftools"]], "sort --output-type z --output-file", iout, ivcf
+          ))
         } else {
           system(paste("cp", ivcf, iout))
         }
@@ -118,7 +128,11 @@ create_genotype_matrix <- function(
 
   ## prepare raw matrix
   data.table::setDTthreads(threads = nb_cores)
-  geno_mat <- data.table::fread(merged_put, header = TRUE)[, var_id := paste(`#CHROM`, POS, REF, ALT, sep = "_")]
+  geno_mat <- data.table::fread(merged_put, header = TRUE)
+  if (!is.null(chromosomes)) {
+    geno_mat <- geno_mat[`#CHROM` %in% chromosomes]
+  }
+  geno_mat <- geno_mat[, var_id := paste(`#CHROM`, POS, REF, ALT, sep = "_")]
   geno_mat <- geno_mat[, .SD, .SDcols = !`#CHROM`:FORMAT]
   patern_geno_sep <- ifelse(grepl(".{1}/.{1}:", geno_mat[[1]][1]), "/", "|")
   geno_mat <- geno_mat[
@@ -154,7 +168,7 @@ create_genotype_matrix <- function(
 
   data.table::fwrite(
     geno_mat,
-    file = file.path(output_directory, paste0(output_name, ".tsv")),
+    file = file.path(output_directory, paste0(output_name, ".tsv.gz")),
     col.names = TRUE
   )
 
@@ -179,10 +193,12 @@ create_genotype_matrix <- function(
 #' unique for each variant. `NULL` leading the creation of raw genotype matrix with `create_genotype_matrix()`.
 #' @param min_depth An `integer`. The minimum depth to filter when compressing coverage file. Default is `8`.
 #' @param ... Optional arguments to `create_genotype_matrix()`
+#' @param chromosomes A vector of `character`. Chromosomes to check
+#'  (same nomenclature as chromosome name in VCF).
+#' If argument not specified (default is `NULL`), this filter will be turned off.
 #' @param output_directory A `character`. The path to the output directory. Default is `NULL`.
 #' @param compress_cov_directory A `character`. The path the to directory of compressed coverage files. Default is `NULL`.
 #' @param output_name A `character`. The prefix for output genotype data. Default is "clean_merged".
-#' @param keep_autosome A `logical`. Should only autosomes be included.
 #' @param nb_cores An `integer`. The number of CPUs to use. Default is `1`.
 #'
 #' @return
@@ -196,6 +212,7 @@ create_genotype_matrix <- function(
 #' @importFrom data.table `.SD`
 #' @importFrom data.table fread
 #' @importFrom data.table fwrite
+#' @importFrom data.table rbindlist
 #' @importFrom data.table tstrsplit
 #' @importFrom data.table inrange
 #'
@@ -205,15 +222,19 @@ check_genotype <- function(
   genotype_matrix = NULL,
   min_depth = 8,
   ...,
+  chromosomes = NULL,
   output_directory = NULL,
   compress_cov_directory = NULL,
   output_name = "clean_merged",
-  keep_autosome = TRUE,
   nb_cores = 1L
 ) {
 
   if (! "id" %in% colnames(sample_sheet)) {
     stop("'id' is missing in the sample_sheet.")
+  }
+
+  if (is.null(output_directory)) {
+    stop("The output_directory must be specified.")
   }
 
   if (is.null(compress_cov_directory)) {
@@ -223,7 +244,7 @@ check_genotype <- function(
   "CHROM" = "POS" = "chr" = "idx" = "var_id" <- NULL
 
   dir.create(path = output_directory, showWarnings = FALSE, recursive = TRUE)
-  output_name <- file.path(output_directory, paste0(output_name, ".tsv"))
+  output_name <- file.path(output_directory, paste0(output_name, ".tsv.gz"))
   check_log <- file.path(output_directory, "check_geno.log")
   cat(paste("Start at", Sys.time()), file = check_log, sep = "\n")
 
@@ -246,6 +267,7 @@ check_genotype <- function(
         sample_sheet = to_compress,
         output_directory = compress_cov_directory,
         min_depth = min_depth,
+        chromosomes = chromosomes,
         nb_cores = nb_cores
       )
     }
@@ -261,6 +283,7 @@ check_genotype <- function(
         sample_sheet = sample_sheet,
         output_name = "raw_merged",
         output_directory = output_directory,
+        chromosomes = chromosomes,
         ...,
         nb_cores = nb_cores
       )
@@ -269,10 +292,10 @@ check_genotype <- function(
     }
 
     genotype_matrix <- genotype_matrix[, c("CHROM", "POS") := data.table::tstrsplit(var_id, split = "_")[1:2]]
-    genotype_matrix$POS <- as.numeric(genotype_matrix$POS)
+    genotype_matrix <- genotype_matrix[, POS := as.numeric(POS)]
 
-    if (keep_autosome) {
-      genotype_matrix <- genotype_matrix[CHROM %in% c(1:22, paste0("chr", 1:22)), ]
+    if (!is.null(chromosomes)) {
+      genotype_matrix <- genotype_matrix[CHROM %in% chromosomes]
     }
 
     samples_available <- samples_ids %in% colnames(genotype_matrix)
@@ -299,11 +322,10 @@ check_genotype <- function(
       }
 
       tmp_cov <- data.table::fread(cov_path, header = TRUE)
-      if (keep_autosome) tmp_cov <- tmp_cov[chr %in% c(1:22, paste0("chr", 1:22)), ]
 
-      res_j <- do.call("rbind", parallel::mclapply(
-        X = unique(genotype_matrix$CHROM),
-        mc.cores = min(length(unique(tmp_cov$chr)), nb_cores),
+      res_j <- data.table::rbindlist(parallel::mclapply(
+        X = unique(genotype_matrix[["CHROM"]]),
+        mc.cores = min(length(unique(tmp_cov[["chr"]])), nb_cores),
         mc_tmp_cov = tmp_cov,
         mc_all_snp_geno = genotype_matrix,
         mc_iid = iid,
@@ -312,10 +334,10 @@ check_genotype <- function(
             return(NULL)
           }
 
-          tmp_cov_chr <- mc_tmp_cov[chr %in% jchr, ]
+          tmp_cov_chr <- mc_tmp_cov[chr %in% jchr]
           tmp_ind_chr <- mc_all_snp_geno[CHROM %in% jchr, .SD, .SDcols = c("POS", mc_iid)]
 
-          real_0 <- tmp_ind_chr[, idx := seq(nrow(tmp_ind_chr))][is.na(get(mc_iid)), ][data.table::inrange(POS, tmp_cov_chr$start, tmp_cov_chr$end)][["idx"]]
+          real_0 <- tmp_ind_chr[, idx := seq(nrow(tmp_ind_chr))][is.na(get(mc_iid))][data.table::inrange(POS, tmp_cov_chr$start, tmp_cov_chr$end)][["idx"]]
           tmp_ind_chr[real_0, (mc_iid) := 0]
           tmp_ind_chr[is.na(get(mc_iid)), (mc_iid) := -1][, !c("idx", "POS")]
         }
