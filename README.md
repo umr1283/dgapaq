@@ -9,6 +9,8 @@
 experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://www.tidyverse.org/lifecycle/#experimental)
 [![GitHub
 tag](https://img.shields.io/github/tag/mcanouil/dgapaq.svg?label=latest%20tag&include_prereleases)](https://github.com/mcanouil/dgapaq)
+[![R build
+status](https://github.com/umr1283/dgapaq/workflows/R-CMD-check/badge.svg)](https://github.com/umr1283/dgapaq/actions)
 <!-- badges: end -->
 
 ## Installation
@@ -30,8 +32,9 @@ remotes::install_github("mcanouil/dgapaq")
   - `qc_vcf()` allows to compute post-imputation quality-control report
     using a default [rmarkdown
     template](inst/rmarkdown/templates/qc_vcf/skeleton/skeleton.Rmd).
-  - `convert_assembly()` allows to convert VCFs to target genome assembly 
-    using the software [CrossMap](https://crossmap.readthedocs.io/en/latest/).
+  - `convert_assembly()` allows to convert VCFs to target genome
+    assembly using the software
+    [CrossMap](https://crossmap.readthedocs.io/en/latest/).
 
 ## Getting help
 
