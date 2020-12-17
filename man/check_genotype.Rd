@@ -9,10 +9,10 @@ check_genotype(
   genotype_matrix = NULL,
   min_depth = 8,
   ...,
+  chromosomes = NULL,
   output_directory = NULL,
   compress_cov_directory = NULL,
   output_name = "clean_merged",
-  keep_autosome = TRUE,
   nb_cores = 1L
 )
 }
@@ -31,13 +31,15 @@ unique for each variant. \code{NULL} leading the creation of raw genotype matrix
 
 \item{...}{Optional arguments to \code{create_genotype_matrix()}}
 
+\item{chromosomes}{A vector of \code{character}. Chromosomes to check
+(same nomenclature as chromosome name in VCF).
+If argument not specified (default is \code{NULL}), this filter will be turned off.}
+
 \item{output_directory}{A \code{character}. The path to the output directory. Default is \code{NULL}.}
 
 \item{compress_cov_directory}{A \code{character}. The path the to directory of compressed coverage files. Default is \code{NULL}.}
 
 \item{output_name}{A \code{character}. The prefix for output genotype data. Default is "clean_merged".}
-
-\item{keep_autosome}{A \code{logical}. Should only autosomes be included.}
 
 \item{nb_cores}{An \code{integer}. The number of CPUs to use. Default is \code{1}.}
 }

@@ -6,8 +6,8 @@
 \usage{
 compress_coverage(
   sample_sheet,
-  output_directory,
-  chromosome,
+  output_directory = NULL,
+  chromosomes = NULL,
   min_depth = 8,
   nb_cores = 1
 )
@@ -18,9 +18,9 @@ the full path to coverage files \code{cov_file}.}
 
 \item{output_directory}{A \code{character}. The path to the output directory.}
 
-\item{chromosome}{A vector of \code{character}. Chromosomes to keep
+\item{chromosomes}{A vector of \code{character}. Chromosomes to keep.
 (same nomenclature as chromosome name in coverage file).
-By default use all chromosomes present in the coverage file.}
+If argument not specified (default is \code{NULL}), this filter will be turned off.}
 
 \item{min_depth}{An \code{integer}. The minimum depth to keep. Default is \code{8}.}
 

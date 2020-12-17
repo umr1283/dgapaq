@@ -8,12 +8,13 @@ create_genotype_matrix(
   sample_sheet,
   output_name = "raw_merged",
   output_directory = NULL,
-  remove_homozygous_mutation = TRUE,
+  chromosomes = NULL,
+  remove_multiallelic = TRUE,
   split_multiallelic = FALSE,
   split_type = "both",
   ref_fasta = NULL,
   bin_path = list(vcftools = "/usr/bin/vcftools", bcftools = "/usr/bin/bcftools", tabix
-    = "/usr/bin/tabix", bgzip = "/usr/bin/bgzip"),
+    = "/usr/bin/tabix"),
   nb_cores = 1L
 )
 }
@@ -24,7 +25,11 @@ create_genotype_matrix(
 
 \item{output_directory}{A \code{character}. The path to the output directory. Default is \code{NULL}.}
 
-\item{remove_homozygous_mutation}{A \code{logical}. Does the homozygous mutation (i.e.: genotype composed
+\item{chromosomes}{A vector of \code{character}. Chromosomes to keep
+(same nomenclature as chromosome name in VCF).
+If argument not specified (as default \code{NULL}), this filter will be turned off.}
+
+\item{remove_multiallelic}{A \code{logical}. Does the multi-allelic variants (i.e.: genotype composed
 of different alternative alleles) should be removed. Default is \code{TRUE}.}
 
 \item{split_multiallelic}{A \code{logical}. Does the multi-allelic variants should be splitted into
