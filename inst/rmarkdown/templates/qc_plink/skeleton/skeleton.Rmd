@@ -252,7 +252,7 @@ fam_data <- data.table::fread(
   colClasses = c("character", "character", "character", "character", "numeric", "numeric")
 )
 
-samples_duplicated <- anyDuplicated(gsub("[_-][^-_]*$", "", fam_data[["IID"]]))
+samples_duplicated <- sum(table(gsub("[_-][^-_]*$", "", fam_data[["IID"]])) > 1)
 
 snps_number <- nrow(data.table::fread(input = file.path(temp, "data.bim"), select = 1))
 
@@ -267,7 +267,14 @@ PLINK files includes:
 * **`r comma(snps_number)`** variants.
 
 ```{r cohort-overview-table}
-fam_data[, .N, by = c("cohort", "sex_fct")][, .(sex_fct, N)] %>% 
+fam_data[
+  j = .N, 
+  by = .(FID, gsub("[_-][^-_]*$", "", IID), cohort, sex_fct)
+][
+  j = .N, by = c("cohort", "sex_fct")
+][
+  j = .(sex_fct, N)
+] %>% 
   gt::gt(auto_align = "center") %>%
   gt::tab_header(
     title = "Samples Available", 

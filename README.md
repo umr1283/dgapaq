@@ -9,6 +9,8 @@
 experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://www.tidyverse.org/lifecycle/#experimental)
 [![GitHub
 tag](https://img.shields.io/github/tag/mcanouil/dgapaq.svg?label=latest%20tag&include_prereleases)](https://github.com/mcanouil/dgapaq)
+[![R build
+status](https://github.com/umr1283/dgapaq/workflows/R-CMD-check/badge.svg)](https://github.com/umr1283/dgapaq/actions)
 <!-- badges: end -->
 
 ## Installation

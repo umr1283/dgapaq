@@ -8,6 +8,12 @@
     + `create_genotype_matrix()` allows to create a genotype matrix based on VCFs.
     + `check_genotype()` allows to check missing data in genotype matrix against coverage information.
 
+## Minor improvements and fixes
+
+* In [rmarkdown templates](inst/rmarkdown/templates),
+    + Fix number of duplicated samples in text.
+    + Fix descriptive table, to not show duplicates.
+
 # dgapaq 0.6.1
 
 ## Minor improvements and fixes
