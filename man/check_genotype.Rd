@@ -18,34 +18,36 @@ check_genotype(
 }
 \arguments{
 \item{sample_sheet}{A \code{data.frame}. A data frame with one mandatory column \code{id}.
-The column \code{vcf_file} (path to vcf files) should be provided if you need to create the
-raw genotype matrix. Please see details in \code{create_genotype_matrix()}.
+The column \code{vcf_file} (path to vcf files) should be provided if you need to create the raw
+genotype matrix. Please see details in \code{create_genotype_matrix()}.
 The column \code{cov_file} (path to coverage files) should be provided if you need to compress the
-coverage file (output of \verb{samtools depth}) into contiguous segments. Please see details in \code{compress_coverage()}.}
+coverage file (output of \verb{samtools depth}) into contiguous segments.
+Please see details in \code{compress_coverage()}.}
 
 \item{genotype_matrix}{A \code{character} or \code{NULL}. The path to the genotype matrix to be imported,
 with samples in columns and variants in rows, the first columns should be \code{var_id} which is
 unique for each variant. \code{NULL} leading the creation of raw genotype matrix with \code{create_genotype_matrix()}.}
 
-\item{min_depth}{An \code{integer}. The minimum depth to filter when compressing coverage file. Default is \code{8}.}
+\item{min_depth}{An \code{integer}. The minimum depth to filter when compressing coverage file.
+Default is \code{8}.}
 
 \item{...}{Optional arguments to \code{create_genotype_matrix()}}
 
-\item{chromosomes}{A vector of \code{character}. Chromosomes to check
-(same nomenclature as chromosome name in VCF).
-If argument not specified (default is \code{NULL}), this filter will be turned off.}
+\item{chromosomes}{A vector of \code{character}. Chromosomes to check (same nomenclature as chromosome
+name in VCF). If argument not specified (default is \code{NULL}), this filter will be turned off.}
 
 \item{output_directory}{A \code{character}. The path to the output directory. Default is \code{NULL}.}
 
-\item{compress_cov_directory}{A \code{character}. The path the to directory of compressed coverage files. Default is \code{NULL}.}
+\item{compress_cov_directory}{A \code{character}. The path the to directory of compressed coverage files.
+Default is \code{NULL}.}
 
 \item{output_name}{A \code{character}. The prefix for output genotype data. Default is "clean_merged".}
 
 \item{nb_cores}{An \code{integer}. The number of CPUs to use. Default is \code{1}.}
 }
 \value{
-A genotype matrix coded 0, 1, or 2 (additive model), with variants in rows and individuals in
-columns. Missing genotype is coded to -1. The first column \code{var_id} is composed of variant's
+A genotype matrix coded 0, 1, or 2 (additive model), with variants in rows and individuals
+in columns. Missing genotype is coded to -1. The first column \code{var_id} is composed of variant's
 chromosome, position, reference allele and alternative allele, separated by "_".
 }
 \description{

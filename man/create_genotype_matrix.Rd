@@ -35,19 +35,22 @@ of different alternative alleles) should be removed. Default is \code{TRUE}.}
 \item{split_multiallelic}{A \code{logical}. Does the multi-allelic variants should be splitted into
 bi-allelic variants. Default is \code{FALSE}.}
 
-\item{split_type}{A \code{character}. The type of variants should be splitted by \verb{bcftools norm}. Default is \code{both}.}
+\item{split_type}{A \code{character}. The type of variants should be splitted by \verb{bcftools norm}.
+Default is \code{both}.}
 
 \item{ref_fasta}{A \code{character}. A path to the reference fasta file, it should be provided
-if multiallelic INDELs need left-alignment after splitting. Default is \code{NULL} which lead to no left-alignment.}
+if multiallelic INDELs need left-alignment after splitting.
+Default is \code{NULL} which lead to no left-alignment.}
 
-\item{bin_path}{A \code{list(character)}. A list giving the binary path of \code{vcftools}, \code{bcftools}, \code{tabix} and \code{bgzip}.}
+\item{bin_path}{A \code{list(character)}. A list giving the binary path of \code{vcftools}, \code{bcftools},
+\code{tabix} and \code{bgzip}.}
 
 \item{nb_cores}{An \code{integer}. The number of CPUs to use. Default is \code{1}.}
 }
 \value{
-A genotype matrix coded NA, 1, or 2 (additive model), with variants in rows and individuals in
-columns. The first column \code{var_id} is composed of variant's chromosome, position, reference allele
-and alternative allele, separated by "_".
+A genotype matrix coded NA, 1, or 2 (additive model), with variants in rows and
+individuals in columns. The first column \code{var_id} is composed of variant's chromosome,
+position, reference allele and alternative allele, separated by "_".
 }
 \description{
 Creates a raw genotype matrix with provided VCF files.

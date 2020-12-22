@@ -9,6 +9,7 @@ compress_coverage(
   output_directory = NULL,
   chromosomes = NULL,
   min_depth = 8,
+  bin_path = list(awk = "/usr/bin/awk", bgzip = "/usr/bin/bgzip", bgzip2 = NULL),
   nb_cores = 1
 )
 }
@@ -24,6 +25,9 @@ If argument not specified (default is \code{NULL}), this filter will be turned o
 
 \item{min_depth}{An \code{integer}. The minimum depth to keep. Default is \code{8}.}
 
+\item{bin_path}{A \code{list(character)}. A list giving the binary path of \code{awk} and \code{bgzip} (or \code{bgzip2})
+in case of compressed coverage file.}
+
 \item{nb_cores}{An \code{integer}. The number of CPUs to use. Default is \code{1}.}
 }
 \description{
@@ -32,7 +36,5 @@ This function works with whole genome or any specified chromosomes.
 Each sample is supposed to have one coverage file.
 The coverage file should not have header and contain 3 mandatory columns for chromosome, position
 and depth, with no header.
-Please note this function is designed for Linux environment, \code{awk} and \code{gzip} (or \code{bzip2}) are
-required to process data.
 Attention, currently only supports coverage file in raw text or .gz/.bz2 compressed format.
 }
