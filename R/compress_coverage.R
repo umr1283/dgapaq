@@ -4,18 +4,18 @@
 #' This function works with whole genome or any specified chromosomes.
 #' Each sample is supposed to have one coverage file.
 #' The coverage file should not have header and contain 3 mandatory columns for chromosome, position
-#' and depth, with no header.
-#' Please note this function is designed for Linux environment, `awk` and `gzip` (or `bzip2`) are
-#' required to process data.
+#'     and depth, with no header.
 #' Attention, currently only supports coverage file in raw text or .gz/.bz2 compressed format.
 #'
 #' @param sample_sheet A `data.frame`. A data frame containing samples `id` and
-#' the full path to coverage files `cov_file`.
+#'     the full path to coverage files `cov_file`.
 #' @param output_directory A `character`. The path to the output directory.
 #' @param chromosomes A vector of `character`. Chromosomes to keep.
-#' (same nomenclature as chromosome name in coverage file).
-#' If argument not specified (default is `NULL`), this filter will be turned off.
+#'     (same nomenclature as chromosome name in coverage file).
+#'     If argument not specified (default is `NULL`), this filter will be turned off.
 #' @param min_depth An `integer`. The minimum depth to keep. Default is `8`.
+#' @param bin_path A `list(character)`. A list giving the binary path of `awk` and `bgzip` (or `bgzip2`)
+#'     in case of compressed coverage file.
 #' @param nb_cores An `integer`. The number of CPUs to use. Default is `1`.
 #'
 #' @return NULL
@@ -33,6 +33,11 @@ compress_coverage <- function(
   output_directory = NULL,
   chromosomes = NULL,
   min_depth = 8,
+  bin_path = list(
+    awk = "/usr/bin/awk",
+    bgzip = "/usr/bin/bgzip",
+    bgzip2 = NULL
+  ),
   nb_cores = 1
 ) {
 
@@ -91,14 +96,14 @@ compress_coverage <- function(
           ifelse(
             isgz_cov | isbz2_cov,
             paste0(
-              "n_col=\"$(head -c100 ", cov_file, " | zcat 2>/dev/null | head -n1 | wc -w)\"", "\n",
-              "awk -v var=$n_col '", filter_cond, "' ",
-              "<(", ifelse(test = isgz_cov, yes = "gzip", no = "bzip2"), " -dc ", cov_file, ") ",
+              "n_col=\"$(head -c100 ", cov_file, " | zcat 2>/dev/null | head -n1 | wc -w)\"\n",
+              bin_path[["awk"]], " -v var=$n_col '", filter_cond, "' ",
+              "<(", ifelse(test = isgz_cov, yes = bin_path[["bgzip"]], no = bin_path[["bzip2"]]), " -dc ", cov_file, ") ",
               "> ", filtered_file
             ),
             paste0(
-              "n_col=\"$(head -n1 ", cov_file, "| wc -w)\"", "\n",
-              "awk -v var=$n_col '", filter_cond, "' ",
+              "n_col=\"$(head -n1 ", cov_file, "| wc -w)\"\n",
+              bin_path[["awk"]], " -v var=$n_col '", filter_cond, "' ",
               cov_file, "> ", filtered_file
             )
           )
@@ -140,7 +145,9 @@ compress_coverage <- function(
         }
 
         V1 <- NULL
-        cov_file_filtered <- data.table::fread(filtered_file, header = FALSE, nThread = nb_cores)
+        cov_file_filtered <- data.table::fread(
+          filtered_file, header = FALSE, nThread = nb_cores, showProgress = FALSE
+        )
         invisible(file.remove(filtered_file))
 
         cat(
