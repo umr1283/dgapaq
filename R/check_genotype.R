@@ -6,22 +6,24 @@
 #' @param output_name A `character`. The prefix for output genotype data. Default is "raw_merged"
 #' @param output_directory A `character`. The path to the output directory. Default is `NULL`.
 #' @param chromosomes A vector of `character`. Chromosomes to keep
-#'  (same nomenclature as chromosome name in VCF).
-#' If argument not specified (as default `NULL`), this filter will be turned off.
+#'     (same nomenclature as chromosome name in VCF).
+#'     If argument not specified (as default `NULL`), this filter will be turned off.
 #' @param remove_multiallelic A `logical`. Does the multi-allelic variants (i.e.: genotype composed
-#' of different alternative alleles) should be removed. Default is `TRUE`.
+#'     of different alternative alleles) should be removed. Default is `TRUE`.
 #' @param split_multiallelic A `logical`. Does the multi-allelic variants should be splitted into
-#' bi-allelic variants. Default is `FALSE`.
-#' @param split_type A `character`. The type of variants should be splitted by `bcftools norm`. Default is `both`.
+#'     bi-allelic variants. Default is `FALSE`.
+#' @param split_type A `character`. The type of variants should be splitted by `bcftools norm`.
+#'     Default is `both`.
 #' @param ref_fasta A `character`. A path to the reference fasta file, it should be provided
-#' if multiallelic INDELs need left-alignment after splitting. Default is `NULL` which lead to no left-alignment.
-#' @param bin_path A `list(character)`. A list giving the binary path of `vcftools`, `bcftools`, `tabix` and `bgzip`.
+#'     if multiallelic INDELs need left-alignment after splitting.
+#'     Default is `NULL` which lead to no left-alignment.
+#' @param bin_path A `list(character)`. A list giving the binary path of `vcftools`, `bcftools`,
+#'     `tabix` and `bgzip`.
 #' @param nb_cores An `integer`. The number of CPUs to use. Default is `1`.
 #'
-#' @return
-#' A genotype matrix coded NA, 1, or 2 (additive model), with variants in rows and individuals in
-#' columns. The first column `var_id` is composed of variant's chromosome, position, reference allele
-#' and alternative allele, separated by "_".
+#' @return A genotype matrix coded NA, 1, or 2 (additive model), with variants in rows and
+#'     individuals in columns. The first column `var_id` is composed of variant's chromosome,
+#'     position, reference allele and alternative allele, separated by "_".
 #'
 #' @importFrom parallel mclapply
 #' @importFrom data.table `:=`
@@ -128,7 +130,7 @@ create_genotype_matrix <- function(
 
   ## prepare raw matrix
   data.table::setDTthreads(threads = nb_cores)
-  geno_mat <- data.table::fread(merged_put, header = TRUE)
+  geno_mat <- data.table::fread(merged_put, header = TRUE, showProgress = FALSE)
   if (!is.null(chromosomes)) {
     geno_mat <- geno_mat[`#CHROM` %in% chromosomes]
   }
@@ -184,27 +186,28 @@ create_genotype_matrix <- function(
 #'
 #'
 #' @param sample_sheet A `data.frame`. A data frame with one mandatory column `id`.
-#' The column `vcf_file` (path to vcf files) should be provided if you need to create the
-#' raw genotype matrix. Please see details in `create_genotype_matrix()`.
-#' The column `cov_file` (path to coverage files) should be provided if you need to compress the
-#' coverage file (output of `samtools depth`) into contiguous segments. Please see details in `compress_coverage()`.
+#'     The column `vcf_file` (path to vcf files) should be provided if you need to create the raw
+#'     genotype matrix. Please see details in `create_genotype_matrix()`.
+#'     The column `cov_file` (path to coverage files) should be provided if you need to compress the
+#'     coverage file (output of `samtools depth`) into contiguous segments.
+#'     Please see details in `compress_coverage()`.
 #' @param genotype_matrix A `character` or `NULL`. The path to the genotype matrix to be imported,
-#' with samples in columns and variants in rows, the first columns should be `var_id` which is
-#' unique for each variant. `NULL` leading the creation of raw genotype matrix with `create_genotype_matrix()`.
-#' @param min_depth An `integer`. The minimum depth to filter when compressing coverage file. Default is `8`.
+#'     with samples in columns and variants in rows, the first columns should be `var_id` which is
+#'     unique for each variant. `NULL` leading the creation of raw genotype matrix with `create_genotype_matrix()`.
+#' @param min_depth An `integer`. The minimum depth to filter when compressing coverage file.
+#'     Default is `8`.
 #' @param ... Optional arguments to `create_genotype_matrix()`
-#' @param chromosomes A vector of `character`. Chromosomes to check
-#'  (same nomenclature as chromosome name in VCF).
-#' If argument not specified (default is `NULL`), this filter will be turned off.
+#' @param chromosomes A vector of `character`. Chromosomes to check (same nomenclature as chromosome
+#'     name in VCF). If argument not specified (default is `NULL`), this filter will be turned off.
 #' @param output_directory A `character`. The path to the output directory. Default is `NULL`.
-#' @param compress_cov_directory A `character`. The path the to directory of compressed coverage files. Default is `NULL`.
+#' @param compress_cov_directory A `character`. The path the to directory of compressed coverage files.
+#'     Default is `NULL`.
 #' @param output_name A `character`. The prefix for output genotype data. Default is "clean_merged".
 #' @param nb_cores An `integer`. The number of CPUs to use. Default is `1`.
 #'
-#' @return
-#' A genotype matrix coded 0, 1, or 2 (additive model), with variants in rows and individuals in
-#' columns. Missing genotype is coded to -1. The first column `var_id` is composed of variant's
-#' chromosome, position, reference allele and alternative allele, separated by "_".
+#' @return A genotype matrix coded 0, 1, or 2 (additive model), with variants in rows and individuals
+#'     in columns. Missing genotype is coded to -1. The first column `var_id` is composed of variant's
+#'     chromosome, position, reference allele and alternative allele, separated by "_".
 #'
 #' @importFrom parallel mclapply
 #' @importFrom data.table setDTthreads
@@ -288,7 +291,7 @@ check_genotype <- function(
         nb_cores = nb_cores
       )
     } else {
-      genotype_matrix <- data.table::fread(genotype_matrix, header = TRUE)
+      genotype_matrix <- data.table::fread(genotype_matrix, header = TRUE, showProgress = FALSE)
     }
 
     genotype_matrix <- genotype_matrix[, c("CHROM", "POS") := data.table::tstrsplit(var_id, split = "_")[1:2]]
@@ -321,7 +324,7 @@ check_genotype <- function(
         return(invisible())
       }
 
-      tmp_cov <- data.table::fread(cov_path, header = TRUE)
+      tmp_cov <- data.table::fread(cov_path, header = TRUE, showProgress = FALSE)
 
       res_j <- data.table::rbindlist(parallel::mclapply(
         X = unique(genotype_matrix[["CHROM"]]),
@@ -337,7 +340,9 @@ check_genotype <- function(
           tmp_cov_chr <- mc_tmp_cov[chr %in% jchr]
           tmp_ind_chr <- mc_all_snp_geno[CHROM %in% jchr, .SD, .SDcols = c("POS", mc_iid)]
 
-          real_0 <- tmp_ind_chr[, idx := seq(nrow(tmp_ind_chr))][is.na(get(mc_iid))][data.table::inrange(POS, tmp_cov_chr$start, tmp_cov_chr$end)][["idx"]]
+          real_0 <- tmp_ind_chr[, idx := seq(nrow(tmp_ind_chr))][is.na(get(mc_iid))][
+            data.table::inrange(POS, tmp_cov_chr$start, tmp_cov_chr$end)
+          ][["idx"]]
           tmp_ind_chr[real_0, (mc_iid) := 0]
           tmp_ind_chr[is.na(get(mc_iid)), (mc_iid) := -1][, !c("idx", "POS")]
         }
