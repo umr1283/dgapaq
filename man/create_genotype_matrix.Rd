@@ -15,43 +15,49 @@ create_genotype_matrix(
   ref_fasta = NULL,
   bin_path = list(vcftools = "/usr/bin/vcftools", bcftools = "/usr/bin/bcftools", tabix
     = "/usr/bin/tabix"),
-  nb_cores = 1L
+  nb_cores = 1
 )
 }
 \arguments{
-\item{sample_sheet}{A \code{data.frame}. A data frame with two mandatory columns \code{id} and \code{vcf_file}.}
+\item{sample_sheet}{A \code{data.frame}. The data frame should contain two columns: sample \code{id} and
+the path to VCFs \code{vcf_file}.}
 
-\item{output_name}{A \code{character}. The prefix for output genotype data. Default is "raw_merged"}
+\item{output_name}{A \code{character}. The prefix of output file. Default is \code{raw_merged}.}
 
 \item{output_directory}{A \code{character}. The path to the output directory. Default is \code{NULL}.}
 
-\item{chromosomes}{A vector of \code{character}. Chromosomes to keep
-(same nomenclature as chromosome name in VCF).
-If argument not specified (as default \code{NULL}), this filter will be turned off.}
+\item{chromosomes}{A \code{character} vector. The chromosomes to keep (same nomenclature as chromosome
+in VCF).
+If argument not specified (default is \code{NULL}), this filter will be turned off.}
 
 \item{remove_multiallelic}{A \code{logical}. Does the multi-allelic variants (i.e.: genotype composed
-of different alternative alleles) should be removed. Default is \code{TRUE}.}
+of different alternative alleles) should be removed.
+Default is \code{TRUE}.}
 
-\item{split_multiallelic}{A \code{logical}. Does the multi-allelic variants should be splitted into
-bi-allelic variants. Default is \code{FALSE}.}
+\item{split_multiallelic}{A \code{logical}. Does the multi-allelic variants should be split into
+bi-allelic variants.
+Default is \code{FALSE}.}
 
-\item{split_type}{A \code{character}. The type of variants should be splitted by \verb{bcftools norm}.
+\item{split_type}{A \code{character}. The type of variants which should be split using \verb{bcftools norm}
+(http://samtools.github.io/bcftools/bcftools.html#norm), value can be one of "snps", "indels",
+"both" or "any".
 Default is \code{both}.}
 
-\item{ref_fasta}{A \code{character}. A path to the reference fasta file, it should be provided
+\item{ref_fasta}{A \code{character}. The path to the reference fasta file, it should be provided
 if multiallelic INDELs need left-alignment after splitting.
 Default is \code{NULL} which lead to no left-alignment.}
 
 \item{bin_path}{A \code{list(character)}. A list giving the binary path of \code{vcftools}, \code{bcftools},
 \code{tabix} and \code{bgzip}.}
 
-\item{nb_cores}{An \code{integer}. The number of CPUs to use. Default is \code{1}.}
+\item{nb_cores}{A \code{numeric}. The number of CPUs to use. Default is \code{1}.}
 }
 \value{
 A genotype matrix coded NA, 1, or 2 (additive model), with variants in rows and
 individuals in columns. The first column \code{var_id} is composed of variant's chromosome,
 position, reference allele and alternative allele, separated by "_".
+Half-called genotype is treated as missing.
 }
 \description{
-Creates a raw genotype matrix with provided VCF files.
+Create a raw genotype matrix using VCFs.
 }

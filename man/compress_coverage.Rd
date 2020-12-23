@@ -14,27 +14,25 @@ compress_coverage(
 )
 }
 \arguments{
-\item{sample_sheet}{A \code{data.frame}. A data frame containing samples \code{id} and
-the full path to coverage files \code{cov_file}.}
+\item{sample_sheet}{A \code{data.frame}. The data frame should contain two columns: samples \code{id} and
+the path to coverage files \code{cov_file}.}
 
 \item{output_directory}{A \code{character}. The path to the output directory.}
 
-\item{chromosomes}{A vector of \code{character}. Chromosomes to keep.
-(same nomenclature as chromosome name in coverage file).
+\item{chromosomes}{A \code{character} vector. The chromosomes to keep (same nomenclature as chromosome
+in coverage file).
 If argument not specified (default is \code{NULL}), this filter will be turned off.}
 
-\item{min_depth}{An \code{integer}. The minimum depth to keep. Default is \code{8}.}
+\item{min_depth}{A \code{numeric}. The minimum depth to keep. Default is \code{8}.}
 
 \item{bin_path}{A \code{list(character)}. A list giving the binary path of \code{awk} and \code{bgzip} (or \code{bgzip2})
 in case of compressed coverage file.}
 
-\item{nb_cores}{An \code{integer}. The number of CPUs to use. Default is \code{1}.}
+\item{nb_cores}{A \code{numeric}. The number of CPUs to use. Default is \code{1}.}
 }
 \description{
-Compresses coverage file (output of \verb{samtools depth}) into contiguous segments based on position.
-This function works with whole genome or any specified chromosomes.
-Each sample is supposed to have one coverage file.
-The coverage file should not have header and contain 3 mandatory columns for chromosome, position
-and depth, with no header.
+Compress coverage file (output of \verb{samtools depth}) into contiguous segments based on position.
+This function works with whole genome or specified chromosomes.
+The coverage file should contain columns for chromosome, position and depth, with no header.
 Attention, currently only supports coverage file in raw text or .gz/.bz2 compressed format.
 }
