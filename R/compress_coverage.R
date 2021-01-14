@@ -49,12 +49,12 @@ compress_coverage <- function(
   dir.create(path = output_directory, showWarnings = FALSE, recursive = TRUE)
 
   if (is.null(chromosomes)) {
-    filter_cond <- paste0("{if ($var >= ", min_depth, "){print}}")
+    filter_cond <- paste0("{if ($3 >= ", min_depth, "){print}}")
   } else {
     filter_cond <- paste0(
       "{if ((",
       paste0(paste0("$1 == ", shQuote(chromosomes, type = "cmd")), collapse = " || "),
-      ") && $var >= ", min_depth, "){print}}"
+      ") && $3 >= ", min_depth, "){print}}"
     )
   }
 
@@ -62,7 +62,8 @@ compress_coverage <- function(
     X = seq_along(sample_sheet[["id"]]),
     mc.cores = min(nb_cores, nrow(sample_sheet)),
     mc_sample_sheet = sample_sheet,
-    FUN = function(i, mc_sample_sheet) {
+    mc_filter_cond = filter_cond,
+    FUN = function(i, mc_sample_sheet, mc_filter_cond) {
       iid <- mc_sample_sheet[["id"]][i]
       log_file <- file.path(output_directory, paste0(iid, ".log"))
       filtered_file <- file.path(output_directory, paste0(iid, ".cov.filtered"))
@@ -94,14 +95,12 @@ compress_coverage <- function(
           ifelse(
             isgz_cov | isbz2_cov,
             paste0(
-              "n_col=\"$(head -c100 ", cov_file, " | zcat 2>/dev/null | head -n1 | wc -w)\"\n",
-              bin_path[["awk"]], " -v var=$n_col '", filter_cond, "' ",
+              bin_path[["awk"]], " '", mc_filter_cond, "' ",
               "<(", ifelse(test = isgz_cov, yes = bin_path[["bgzip"]], no = bin_path[["bzip2"]]), " -dc ", cov_file, ") ",
               "> ", filtered_file
             ),
             paste0(
-              "n_col=\"$(head -n1 ", cov_file, "| wc -w)\"\n",
-              bin_path[["awk"]], " -v var=$n_col '", filter_cond, "' ",
+              bin_path[["awk"]], " '", mc_filter_cond, "' ",
               cov_file, "> ", filtered_file
             )
           )
