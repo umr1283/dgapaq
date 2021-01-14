@@ -124,21 +124,25 @@ create_genotype_matrix <- function(
 
   ## merge vcf
   vcfs_to_merge <- list.files(output_tmp_dir, pattern = "_tmp.vcf.gz$", full.names = TRUE)
-  merged_put <- file.path(output_tmp_dir, paste0(output_name, ".vcf.gz"))
+  merged_vcf <- file.path(output_tmp_dir, paste0(output_name, ".vcf.gz"))
+  cat(
+    vcfs_to_merge,
+    file = file.path(output_tmp_dir, "vcfs_to_merge.txt"), sep = "\n"
+  )
   if (length(vcfs_to_merge) > 1) {
     system(paste(
       bin_path[["bcftools"]],
       "merge -m none",
-      paste0(vcfs_to_merge, collapse = " "),
-      "-O z >", merged_put
+      "--file-list", file.path(output_tmp_dir, "vcfs_to_merge.txt"),
+      "-O z >", merged_vcf
     ))
   } else {
-    file.copy(from = vcfs_to_merge, to = merged_put, overwrite = TRUE)
+    file.copy(from = vcfs_to_merge, to = merged_vcf, overwrite = TRUE)
   }
 
   ## prepare raw matrix
   data.table::setDTthreads(threads = nb_cores)
-  geno_mat <- data.table::fread(merged_put, header = TRUE, showProgress = FALSE)
+  geno_mat <- data.table::fread(merged_vcf, header = TRUE, showProgress = FALSE)
   if (!is.null(chromosomes)) {
     geno_mat <- geno_mat[`#CHROM` %in% chromosomes]
   }
