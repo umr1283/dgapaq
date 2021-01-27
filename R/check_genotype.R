@@ -124,7 +124,7 @@ create_genotype_matrix <- function(
 
   ## merge vcf
   vcfs_to_merge <- list.files(output_tmp_dir, pattern = "_tmp.vcf.gz$", full.names = TRUE)
-  merged_vcf <- file.path(output_tmp_dir, paste0(output_name, ".vcf.gz"))
+  merged_vcf <- file.path(output_directory, paste0(output_name, ".vcf.gz"))
   cat(
     vcfs_to_merge,
     file = file.path(output_tmp_dir, "vcfs_to_merge.txt"), sep = "\n"
