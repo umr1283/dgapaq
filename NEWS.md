@@ -1,4 +1,4 @@
-# dgapaq (development version)
+# dgapaq 0.7.0
 
 ## New feature
 
