@@ -54,6 +54,7 @@ create_genotype_matrix <- function(
   bin_path = list(
     vcftools = "/usr/bin/vcftools",
     bcftools = "/usr/bin/bcftools",
+    bgzip = "/usr/bin/bgzip",
     tabix = "/usr/bin/tabix"
   ),
   nb_cores = 1,
