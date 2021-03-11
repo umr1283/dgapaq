@@ -34,7 +34,7 @@ compress_coverage <- function(
   bin_path = list(
     awk = "/usr/bin/awk",
     bgzip = "/usr/bin/bgzip",
-    bgzip2 = NULL
+    bgzip2 = "bzip2"
   ),
   nb_cores = 1
 ) {
