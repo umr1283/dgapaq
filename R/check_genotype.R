@@ -25,6 +25,9 @@
 #' @param bin_path A `list(character)`. A list giving the binary path of `vcftools`, `bcftools`,
 #'     `tabix` and `bgzip`.
 #' @param nb_cores A `numeric`. The number of CPUs to use. Default is `1`.
+#' @param clean_tmp_folder A `logical`. (default is `TRUE`). Do you want to remove the tmp folder ?
+#'     You may want to turn this param to `FALSE` in order to inspect or re-use filtered vcf or
+#'     the merged file not recoded...
 #'
 #' @return A genotype matrix coded NA, 1, or 2 (additive model), with variants in rows and
 #'     individuals in columns. The first column `var_id` is composed of variant's chromosome,
@@ -53,7 +56,8 @@ create_genotype_matrix <- function(
     bcftools = "/usr/bin/bcftools",
     tabix = "/usr/bin/tabix"
   ),
-  nb_cores = 1
+  nb_cores = 1,
+  clean_tmp_folder = TRUE
 ) {
 
   if (! all(c("id", "vcf_file") %in% colnames(sample_sheet))) {
@@ -186,7 +190,7 @@ create_genotype_matrix <- function(
     col.names = TRUE
   )
 
-  unlink(output_tmp_dir, recursive = TRUE)
+  if(clean_tmp_folder) unlink(output_tmp_dir, recursive = TRUE)
   invisible(geno_mat)
 }
 
