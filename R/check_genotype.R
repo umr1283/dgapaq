@@ -357,6 +357,7 @@ check_genotype <- function(
 
     not_compressed <- !file.exists(file.path(compress_cov_directory, paste0(samples_ids, ".cov.compress")))
     if (any(not_compressed)) {
+      message(sum(not_compressed), " samples haven't their cov.compress")
       cat(paste(
         "Start compressing the coverage file for sample:",
         paste0(samples_ids[not_compressed], collapse = ", ")
