@@ -46,6 +46,7 @@ SystemRequirements:
     bcftools (>= 1.10.2), 
     tabix (>= 1.10.2), 
     bgzip (>= 1.10.2), 
+    bzip2 (>= 1.0.6),
     awk,
     gcta64 (>= 1.93.2), 
     perl (>= 5.28.1), 
