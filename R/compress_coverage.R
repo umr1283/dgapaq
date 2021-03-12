@@ -12,7 +12,7 @@
 #'     in coverage file).
 #'     If argument not specified (default is `NULL`), this filter will be turned off.
 #' @param min_depth A `numeric`. The minimum depth to keep. Default is `8`.
-#' @param bin_path A `list(character)`. A list giving the binary path of `awk` and `bgzip` (or `bgzip2`)
+#' @param bin_path A `list(character)`. A list giving the binary path of `awk` and `bgzip` (or `bzip2`)
 #'     in case of compressed coverage file.
 #' @param nb_cores A `numeric`. The number of CPUs to use. Default is `1`.
 #'
@@ -34,7 +34,7 @@ compress_coverage <- function(
   bin_path = list(
     awk = "/usr/bin/awk",
     bgzip = "/usr/bin/bgzip",
-    bgzip2 = "bzip2"
+    bzip2 = "bzip2"
   ),
   nb_cores = 1
 ) {
