@@ -113,12 +113,11 @@ create_genotype_matrix <- function(
           bin_path[["bcftools"]], "sort --output-type z --output-file", iout
         ))
       } else {
-          system(paste(
-            bin_path[["bcftools"]], "sort --output-type z --output-file", iout, ivcf
-          ))
+        system(paste(
+          bin_path[["bcftools"]], "sort --output-type z --output-file", iout, ivcf
+        ))
         ## in gz or not, must be sorted --here
       }
-
       ## indexing vcf
       system(paste(bin_path[["tabix"]], "-f -p vcf", iout))
     })
@@ -126,19 +125,23 @@ create_genotype_matrix <- function(
 
   if (!is.null(chromosomes)) {
     chromosomes_list <- paste0(chromosomes, collapse = ",")
-    message("[chromosomes] ",chromosomes_list," selected for each vcf")
+    message("[chromosomes] ", chromosomes_list, " selected for each vcf")
     invisible(
-      parallel::mclapply(X = sample_sheet$id, mc.cores = min(nb_cores, nrow(sample_sheet)), function(iid) {
-        iout <- file.path(output_tmp_dir, paste0(iid, "_tmp.vcf.gz"))
-        iout_chr <- file.path(output_tmp_dir, paste0(iid, "_tmpchr.vcf.gz"))
-        system(paste(
-          bin_path[["bcftools"]],
-          "view", iout,
-          "--regions",chromosomes_list, # Comma-separated list of regions
-          "-O z >", iout_chr
-        ))
-        system(paste(bin_path[["tabix"]], "-f -p vcf", iout_chr))
-      })
+      parallel::mclapply(
+        X = sample_sheet$id,
+        mc.cores = min(nb_cores, nrow(sample_sheet)),
+        function(iid) {
+          iout <- file.path(output_tmp_dir, paste0(iid, "_tmp.vcf.gz"))
+          iout_chr <- file.path(output_tmp_dir, paste0(iid, "_tmpchr.vcf.gz"))
+          system(paste(
+            bin_path[["bcftools"]],
+            "view", iout,
+            "--regions",chromosomes_list, # Comma-separated list of regions
+            "-O z >", iout_chr
+          ))
+          system(paste(bin_path[["tabix"]], "-f -p vcf", iout_chr))
+        }
+      )
     )
   }
   # if (!is.null(position)) {
