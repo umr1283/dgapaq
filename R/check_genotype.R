@@ -113,13 +113,9 @@ create_genotype_matrix <- function(
           bin_path[["bcftools"]], "sort --output-type z --output-file", iout
         ))
       } else {
-        # if (!is_gzvcf) {
           system(paste(
             bin_path[["bcftools"]], "sort --output-type z --output-file", iout, ivcf
           ))
-        # } else {
-          # system(paste("cp", ivcf, iout))
-        # }
         ## in gz or not, must be sorted --here
       }
 
