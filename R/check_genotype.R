@@ -212,10 +212,10 @@ create_genotype_matrix <- function(
         row.names = FALSE, col.names = FALSE
       )
       system(paste(
-          bin_path[["bcftools"]],
-          "merge -m none --file-list", file.path(output_tmp_dir, "list_vcf_all_batch.txt"),
-          "-O z >", merged_vcf
-        ))
+        bin_path[["bcftools"]],
+        "merge -m none --file-list", file.path(output_tmp_dir, "list_vcf_all_batch.txt"),
+        "-O z >", merged_vcf
+      ))
     }
   } else {
     file.copy(from = vcfs_to_merge, to = merged_vcf, overwrite = TRUE)
