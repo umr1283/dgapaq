@@ -269,7 +269,7 @@ create_genotype_matrix <- function(
     file = file.path(output_directory, paste0(output_name, ".tsv.gz")),
     col.names = TRUE
   )
-  if(clean_tmp_folder) {unlink(output_tmp_dir, recursive = TRUE)}
+  if (clean_tmp_folder) unlink(output_tmp_dir, recursive = TRUE)
   invisible(geno_mat)
 }
 
