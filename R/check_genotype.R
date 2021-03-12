@@ -154,9 +154,9 @@ create_genotype_matrix <- function(
   message("Merge vcf")
   # vcfs_to_merge <- list.files(output_tmp_dir, pattern = "_tmp.vcf.gz$", full.names = TRUE)
   if (!is.null(chromosomes)) {
-  vcfs_to_merge <- list.files(output_tmp_dir, pattern = paste0("_tmpchr.vcf.gz$"), full.names = TRUE)
+    vcfs_to_merge <- list.files(output_tmp_dir, pattern = paste0("_tmpchr.vcf.gz$"), full.names = TRUE)
   } else {
-  vcfs_to_merge <- list.files(output_tmp_dir, pattern = "_tmp.vcf.gz$", full.names = TRUE)
+    vcfs_to_merge <- list.files(output_tmp_dir, pattern = "_tmp.vcf.gz$", full.names = TRUE)
   }
   merged_vcf <- file.path(output_directory, paste0(output_name, ".vcf.gz"))
 
@@ -182,33 +182,33 @@ create_genotype_matrix <- function(
     for (i in 1:nb_batch) {
       message(">>> ", i)
       indice_batchi <- (indice[i]+1):indice[i+1] ## (start+1:end) otherwise the final merge have borne duplicated
-      if(i==1) {indice_batchi <- indice[i]:indice[i+1]}
+      if (i == 1) indice_batchi <- indice[i]:indice[i+1]
 
       data.table::fwrite(
         x = data.table::data.table(vcfs_to_merge[indice_batchi]),
-        file = file.path(output_tmp_dir, paste0("list_vcf",i,".txt")),
+        file = file.path(output_tmp_dir, paste0("list_vcf", i, ".txt")),
         quote = FALSE,
         row.names = FALSE, col.names = FALSE
       )
 
-      merged_vcf_batchi <- file.path(output_tmp_dir, paste0(output_name, "batch",i,".vcf.gz"))
+      merged_vcf_batchi <- file.path(output_tmp_dir, paste0(output_name, "batch", i, ".vcf.gz"))
       system(paste(
         bin_path[["bcftools"]],
-        "merge -m none --file-list", file.path(output_tmp_dir, paste0("list_vcf",i,".txt")),
+        "merge -m none --file-list", file.path(output_tmp_dir, paste0("list_vcf", i, ".txt")),
         "-O z >", merged_vcf_batchi
       ))
       ## indexing vcf
       system(paste(bin_path[["tabix"]], "-f -p vcf", merged_vcf_batchi))
     }
-    if(nb_batch==1) {
+    if (nb_batch == 1) {
       file.copy(from = merged_vcf_batchi, to = merged_vcf, overwrite = TRUE)
     } else {
       message("Gather batchs")
       data.table::fwrite(
         x = data.table::data.table(
-          file.path(output_tmp_dir, paste0(output_name, "batch",1:nb_batch,".vcf.gz"))
+          file.path(output_tmp_dir, paste0(output_name, "batch", 1:nb_batch, ".vcf.gz"))
         ),
-        file = file.path(output_tmp_dir, paste0("list_vcf_all_batch.txt")),
+        file = file.path(output_tmp_dir, "list_vcf_all_batch.txt"),
         quote = FALSE,
         row.names = FALSE, col.names = FALSE
       )
