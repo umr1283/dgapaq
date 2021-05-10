@@ -1,5 +1,15 @@
-# dgapaq (development version)
+# dgapaq 0.7.0
 
+## New feature
+
+* In `R/compress_coverage.R`, 
+    + `compress_coverage()` allows to compress coverage file (output of `samtools depth`) into contiguous segments based on position.
+* In `R/check_genotype.R`, 
+    + `create_genotype_matrix()` allows to create a genotype matrix based on VCFs.
+    + `check_genotype()` allows to check missing data in genotype matrix against coverage information.
+* In `R/tidy_vcf.R`, 
+    + `tidy_vcf()` allows to correct missing genotypes in VCF using corrected genotype matrix (output of `check_genotype()`)
+    
 ## Minor improvements and fixes
 
 * In [rmarkdown templates](inst/rmarkdown/templates),
