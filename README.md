@@ -1,7 +1,7 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# DNA Genotyping Arrays Processing And Quality-Control <!--<img src="man/figures/dgapaq.png" align="right" width="120" />-->
+# DNA Genotyping Arrays Processing And Quality-Control
 
 <!-- badges: start -->
 
@@ -44,15 +44,18 @@ remotes::install_github("umr1283/dgapaq")
 -   `tidy_vcf()` allows to correct missing genotypes in VCF using
     corrected genotype matrix.
 
+------------------------------------------------------------------------
+
 ## Getting help
 
 If you encounter a clear bug, please file a minimal reproducible example
-on [github](https://github.com/omicsr/dgapaq/issues).  
+on [github](https://github.com/umr1283/dgapaq/issues).  
 For questions and other discussion, please contact the package
 maintainer.
 
-------------------------------------------------------------------------
+## Code of Conduct
 
-Please note that this project is released with a [Contributor Code of
-Conduct](.github/CODE_OF_CONDUCT.md).  
-By participating in this project you agree to abide by its terms.
+Please note that the `dgapaq` project is released with a [Contributor
+Code of
+Conduct](https://contributor-covenant.org/version/2/0/CODE_OF_CONDUCT.html).
+By contributing to this project, you agree to abide by its terms.
