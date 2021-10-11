@@ -17,7 +17,7 @@ knitr::opts_chunk$set(
 # DNA Genotyping Arrays Processing And Quality-Control
 
 <!-- badges: start -->
-[![Lifecycle: questioning](https://img.shields.io/badge/lifecycle-questioning-borange.svg)]()
+[![Lifecycle: questioning](https://img.shields.io/badge/lifecycle-questioning-orange.svg)]()
 [![GitHub tag](https://img.shields.io/github/tag/umr1283/dgapaq.svg?label=latest tag&include_prereleases)](https://github.com/umr1283/dgapaq)
 [![R build status](https://github.com/umr1283/dgapaq/workflows/R-CMD-check/badge.svg)](https://github.com/umr1283/dgapaq/actions)
 <!-- badges: end -->
@@ -55,4 +55,4 @@ For questions and other discussion, please contact the package maintainer.
 
 ## Code of Conduct
 
-Please note that the `dgapaq` project is released with a [Contributor Code of Conduct](https://contributor-covenant.org/version/2/0/CODE_OF_CONDUCT.html). By contributing to this project, you agree to abide by its terms.
+Please note that the dgapaq project is released with a [Contributor Code of Conduct](https://contributor-covenant.org/version/2/0/CODE_OF_CONDUCT.html). By contributing to this project, you agree to abide by its terms.
