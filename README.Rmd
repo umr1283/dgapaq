@@ -17,7 +17,7 @@ knitr::opts_chunk$set(
 # DNA Genotyping Arrays Processing And Quality-Control
 
 <!-- badges: start -->
-[![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://www.tidyverse.org/lifecycle/#experimental)
+[![Lifecycle: questioning](https://img.shields.io/badge/lifecycle-questioning-borange.svg)]()
 [![GitHub tag](https://img.shields.io/github/tag/umr1283/dgapaq.svg?label=latest tag&include_prereleases)](https://github.com/umr1283/dgapaq)
 [![R build status](https://github.com/umr1283/dgapaq/workflows/R-CMD-check/badge.svg)](https://github.com/umr1283/dgapaq/actions)
 <!-- badges: end -->
